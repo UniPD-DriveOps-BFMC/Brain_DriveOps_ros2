@@ -989,11 +989,49 @@ class Brain:
     def sign_detection_position(self):
 
         """
-        Finds a matching sign from a sign file based on the current stopline position.
+        Finds a matching sign for the current stopline.
+
+        Two-tier resolution:
+          1. If YOLO has produced a fresh detection in the last 0.5 s,
+             pick the closest detected sign and return it together with
+             the brain's current estimated position.  This makes the
+             routine work even when the static `data/sign_with_position.txt`
+             is incomplete or out of date.
+          2. Otherwise fall back to the legacy file-based lookup that
+             matches the current stopline coordinate to a hardcoded
+             sign list.
 
         Returns:
             tuple: (sign_name, (x, y)) if a match is found, else None.
+                   (Distance, when available from YOLO+depth, is logged
+                    but not returned to keep the call-site signature.)
         """
+        # ── Tier 1: YOLO cache (depth-aware, no file dependency) ──────────
+        try:
+            yolo_dets = getattr(self.detect, 'last_yolo_detections', [])
+            yolo_stamp = getattr(self.detect, '_last_yolo_stamp', 0.0)
+            if yolo_dets and (time() - yolo_stamp) < 0.5:
+                with_dist    = [d for d in yolo_dets if d['distance_m'] > 0]
+                without_dist = [d for d in yolo_dets if d['distance_m'] <= 0]
+                ordered = sorted(with_dist, key=lambda dd: dd['distance_m']) \
+                          + without_dist
+                # Filter out non-sign classes that the brain doesn't act on
+                # (`pedestrian`, `car`, `roadblock` are handled by
+                # control_for_pedestrian / control_for_car).
+                non_sign = {'pedestrian', 'car', 'roadblock', 'stopline'}
+                signs_only = [d for d in ordered if d['cls_name'] not in non_sign]
+                if signs_only:
+                    best = signs_only[0]
+                    pos  = (float(self.car.x_est), float(self.car.y_est))
+                    dist_str = (f'{best["distance_m"]:.2f}m'
+                                if best['distance_m'] > 0 else 'n/a')
+                    print(f'[sign_detection_position] YOLO: {best["sign"]} '
+                          f'@ {dist_str} ({best["conf"]:.0%})')
+                    return (best['sign'], pos)
+        except Exception as e:
+            print(f'[sign_detection_position] YOLO lookup failed: {e}')
+
+        # ── Tier 2: legacy file-based lookup (unchanged) ──────────────────
         tolerance = 0.001
         print(f'stopline_counter: {self.stopline_counter}')
         curr_stopline = self.next_event.point
@@ -1867,26 +1905,30 @@ class Brain:
 
     def control_for_signs(self):
         prev_sign = self.curr_sign
-        return
+        # Re-enabled after the perception refactor: the legacy SIFT+SVM
+        # classifier was unreliable on the BFMC track lighting and was
+        # therefore disabled with an early `return`.  We now use the
+        # YOLOv8 model trained on the BFMC sign set plus
+        # OAK-D stereo depth — see Detection.detect_sign.
         if not self.conditions[nac.REROUTING]:
-            # Use signs    
-            # TODO remove it and use better detection
-            sign, confidence = self.detect.detect_sign(self.car.frame,
-                                              show_ROI=SHOW_IMGS,
-                                              show_kp=SHOW_IMGS)
+            sign, confidence = self.detect.detect_sign(
+                self.car.frame,
+                show_ROI=SHOW_IMGS,
+                show_kp=SHOW_IMGS,
+                depth_frame=self.car.depth_frame,
+            )
             if sign != nac.NO_SIGN and sign != self.curr_sign:
                 self.curr_sign = sign
                 self.curr_sign_confidence = confidence
-            
+
             if self.curr_sign == 'stop' or self.curr_sign == 'priority':
                 if self.curr_sign_confidence < 0.80:
                     self.curr_sign = nac.NO_SIGN
 
-            #print(f'Current sign: {self.curr_sign}, confidence: {self.curr_sign_confidence}')
-
-            # publish sign
+            # publish sign (this is what the dashboard listens to)
             if self.curr_sign != prev_sign and self.curr_sign != nac.NO_SIGN:
-                self.env.publish_obstacle(self.curr_sign, self.car.x_est, self.car.y_est)
+                self.env.publish_obstacle(
+                    self.curr_sign, self.car.x_est, self.car.y_est)
                 print(f'SIGN: {self.curr_sign}')
     """
     def control_for_signs(self): # we dont do, either do it or delete it 

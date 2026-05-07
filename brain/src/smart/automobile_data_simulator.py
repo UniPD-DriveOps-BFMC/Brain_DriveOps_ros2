@@ -67,6 +67,14 @@ class AutomobileDataSimulator(Automobile_Data):
 
         self.yaw_true = 0.0
 
+        # Stub for the OAK-D Pro stereo depth frame.  The simulator does
+        # not produce one, but the brain (after the perception refactor)
+        # passes it as an optional argument to `Detection.detect_sign`,
+        # so the attribute must exist.  When it is None, `detect_sign`
+        # simply skips the depth lookup and returns YOLO results without
+        # `distance_m`.
+        self.depth_frame = None
+
 
         # PUBLISHERS AND SUBSCRIBERS
         if trig_control:

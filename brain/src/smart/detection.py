@@ -4,10 +4,23 @@ import numpy as np
 import cv2 as cv
 import pickle
 import collections
+import os
+import time as _time_mod
 from time import time
 import names_and_constants as nac
-from ultralytics import YOLO
 from stopline import detect_angle
+
+# onnxruntime is preferred over cv.dnn for the lane keeper and YOLO,
+# because it gives us GPU (CUDAExecutionProvider) support on the Jetson
+# Orin Nano without rebuilding OpenCV.  It is imported lazily so that
+# the simulator path (CPU-only laptop) can still run without onnxruntime
+# installed.
+try:
+    import onnxruntime as ort
+    _ORT_AVAILABLE = True
+except Exception:
+    ort = None
+    _ORT_AVAILABLE = False
 
 LANE_KEEPER_PATH = "models/lane_keeper_small.onnx" #main model for lane keeping
 # LANE_KEEPER_PATH = "models/round_about8001.onnx"
@@ -69,13 +82,85 @@ distance_dict = {
 }
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# YOLOv8 sign / object detector (replaces the BoW+SVM `detect_sign` that
+# used SIFT keypoints + a linear-SVM classifier on a hardcoded ROI in
+# the top-right corner of the frame).
+#
+# The model and the class list are imported from the standalone
+# `traffic_sign` ROS 2 workspace that has already been tested on the
+# car.  We keep the same class indices so the trained weights
+# (`models/best2.onnx`) can be dropped in unchanged.
+# ─────────────────────────────────────────────────────────────────────────
+YOLO_MODEL_PATH = "models/sign_yolo.onnx"
+
+YOLO_CLASS_NAMES = [
+    'stop',              # 0
+    'parking',           # 1
+    'priority',          # 2
+    'roundabout',        # 3
+    'one_way',           # 4
+    'no_entry',          # 5
+    'exit_highway',      # 6
+    'entrance_highway',  # 7
+    'crosswalk',         # 8
+]
+
+# Mapping from YOLO class names → the legacy sign vocabulary used in the
+# brain (`names_and_constants.py`).  Anything not in this map is reported
+# verbatim — useful for `pedestrian`, `car`, `roadblock` which the brain
+# treats as obstacles, not signs.
+YOLO_TO_LEGACY_SIGN = {
+    'stop':             'stop',
+    'parking':          'park',
+    'priority':         'priority',
+    'roundabout':       'roundabout',
+    'one_way':          'one_way',
+    'no_entry':         'closed_road',
+    'exit_highway':     'hw_exit',
+    'entrance_highway': 'hw_enter',
+    'crosswalk':        'cross_walk',
+}
+
+YOLO_CONF_THRESHOLD = 0.50
+YOLO_IOU_THRESHOLD  = 0.40
+YOLO_IMGSZ          = 640
+
+# Stereo-depth windowing (matches `traffic_sign_node.py`).
+DEPTH_MIN_MM = 100
+DEPTH_MAX_MM = 2500
+
+
 class Detection:
 
     # init
     def __init__(self) -> None:
 
-        # lane following
-        self.lane_keeper = cv.dnn.readNetFromONNX(LANE_KEEPER_PATH)
+        # ── Lane keeper (the model that produces e2, e3) ─────────────────
+        # Switched from cv.dnn to onnxruntime so we can use the GPU on the
+        # Jetson Orin Nano via CUDAExecutionProvider.  Falls back to CPU
+        # automatically if CUDA is not available (e.g. on a laptop running
+        # the simulator).  The .onnx file is the one trained by the team
+        # (`models/lane_keeper_small.onnx`) — unchanged.
+        self._ort_providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] \
+            if _ORT_AVAILABLE else None
+        if _ORT_AVAILABLE:
+            try:
+                self.lane_keeper = ort.InferenceSession(
+                    LANE_KEEPER_PATH, providers=self._ort_providers)
+                self._lane_input_name = self.lane_keeper.get_inputs()[0].name
+                print(f'[detection] lane_keeper providers: '
+                      f'{self.lane_keeper.get_providers()}')
+            except Exception as e:
+                print(f'[detection] CUDA EP unavailable for lane_keeper '
+                      f'({e}), falling back to CPU.')
+                self.lane_keeper = ort.InferenceSession(
+                    LANE_KEEPER_PATH, providers=['CPUExecutionProvider'])
+                self._lane_input_name = self.lane_keeper.get_inputs()[0].name
+        else:
+            # onnxruntime missing — fall back to cv.dnn (CPU only, no CUDA).
+            self.lane_keeper = cv.dnn.readNetFromONNX(LANE_KEEPER_PATH)
+            self._lane_input_name = None
         self.lane_cnt = 0
         self.avg_lane_detection_time = 0
 
@@ -126,29 +211,61 @@ class Detection:
         self.avg_stopline_detection_adv_time = 0
         self.stopline_adv_cnt = 0
 
-        # sign classifier
-        self.sign_no_clusters = NUM_CLUSTERS_SIGNS
-        self.sign_kernel_type = KERNEL_TYPE_SIGNS
-        self.sign_svm_model = pickle.load(open(
-            'models/traffic_signs_models/svm_' +
-            self.sign_kernel_type + '_' + str(self.sign_no_clusters) +
-            '.pkl', 'rb'))
-        self.sign_kmean_model = pickle.load(open(
-            'models/traffic_signs_models/kmeans_' + self.sign_kernel_type +
-            '_' + str(self.sign_no_clusters) + '.pkl', 'rb'))
-        self.sign_scale_model = pickle.load(open(
-            'models/traffic_signs_models/scale_' + self.sign_kernel_type +
-            '_' + str(self.sign_no_clusters) + '.pkl', 'rb'))
-        self.sign_sift = cv.SIFT_create()
-        self.sign_probs_buffer = collections.deque(maxlen=10)
+        # ── Sign / object classifier ─────────────────────────────────────
+        # The legacy SIFT + BoW + linear-SVM classifier is replaced by
+        # YOLOv8 (best2.onnx) running through onnxruntime.  YOLO produces
+        # per-class bounding boxes with confidences, and we estimate the
+        # distance to each detection by reading the median depth of the
+        # bbox centre from the OAK-D stereo `depth_frame` (in mm).
+        #
+        # The downstream API of `detect_sign(frame, ...)` is preserved:
+        # it still returns `(sign_str, confidence)` so brain.py needs no
+        # changes.  The full per-class result (with bbox + distance) is
+        # additionally cached in `self.last_yolo_detections` for use by
+        # `sign_detection_position()` and any future routine that wants
+        # depth-aware sign placement.
+        self.sign_yolo = None
+        self._yolo_input_name = None
+        if _ORT_AVAILABLE and os.path.isfile(YOLO_MODEL_PATH):
+            try:
+                self.sign_yolo = ort.InferenceSession(
+                    YOLO_MODEL_PATH, providers=self._ort_providers)
+                self._yolo_input_name = self.sign_yolo.get_inputs()[0].name
+                print(f'[detection] sign_yolo providers: '
+                      f'{self.sign_yolo.get_providers()}')
+            except Exception as e:
+                print(f'[detection] CUDA EP unavailable for sign_yolo '
+                      f'({e}), falling back to CPU.')
+                try:
+                    self.sign_yolo = ort.InferenceSession(
+                        YOLO_MODEL_PATH, providers=['CPUExecutionProvider'])
+                    self._yolo_input_name = \
+                        self.sign_yolo.get_inputs()[0].name
+                except Exception as e2:
+                    print(f'[detection] sign_yolo failed to load: {e2}')
+                    self.sign_yolo = None
+        else:
+            print(f'[detection] sign_yolo not loaded '
+                  f'(onnxruntime={_ORT_AVAILABLE}, '
+                  f'model_exists={os.path.isfile(YOLO_MODEL_PATH)})')
+
+        # Cache of the most recent YOLO output (list of dicts):
+        # {cls, sign, conf, x1, y1, x2, y2, distance_m, stamp}
+        self.last_yolo_detections = []
+        # Most recent single-best detection (the legacy `(sign, conf)`
+        # return value of detect_sign).
         self.sign_prediction = NO_SIGN
-        self.sign_conf = 1
+        self.sign_conf       = 0.0
+        # For book-keeping, in case a routine wants to know how stale the
+        # cached YOLO output is before trusting it.
+        self._last_yolo_stamp = 0.0
+        # Letterbox state used to un-pad the YOLO bboxes.
+        self._lb_scale = 1.0
+        self._lb_pad   = (0, 0)
 
-        # YOLO sign classifier
-        #self.sign_yolo = YOLO(SIGN_CLASSIFIER_YOLO_PATH, task='detect')
-        #self.names = self.sign_yolo.names
-
-        # obstacle classifier
+        # obstacle classifier (kept untouched — `control_for_car` and
+        # `classify_frontal_obstacle` still use it as a secondary signal
+        # alongside the LIDAR cones).
         self.no_clusters = NUM_CLUSTERS_OBS  # use const
         self.kernel_type = KERNEL_TYPE_OBS  # const
         self.svm_model = pickle.load(open('models/obstacle_models/svm_' +
@@ -170,58 +287,97 @@ class Detection:
     def detect_lane(self, frame, show_ROI=True, faster=False):
         """
         Estimates:
-        - the lateral error wrt the center of the lane (e2),
-        - the angular error around the yaw axis wrt a fixed point ahead (e3),
-        - the ditance from the next stop line (1/dist)
+          - the lateral error wrt the center of the lane (e2),
+          - the angular error around the yaw axis wrt a fixed point
+            ahead (e3),
+          - an estimated point ahead in vehicle frame coordinates.
+
+        Implementation note
+        -------------------
+        Body replaced with the preprocessing + inference pipeline
+        from `luxonis_preprocessing.py` (the simple, non-robust
+        version that has been tested on the Jetson + OAK-D Pro).
+        Two changes vs. the original Brain_DEI version:
+
+          1. The crop now drops the *top 1/3* AND the *bottom 15 %*
+             of the frame (`[h/3 : 0.85·h]`), as opposed to keeping
+             everything below h/3.  This excludes the car bonnet
+             from the OAK-D field of view.
+          2. Inference goes through onnxruntime (CUDAExecutionProvider
+             on the Jetson) instead of cv.dnn.  cv.dnn is kept as a
+             fallback if onnxruntime is unavailable so the function
+             still works on a laptop running the simulator.
+
+        Signature & return are unchanged so brain.py keeps calling
+        this method exactly as before.
         """
         start_time = time()
         IMG_SIZE = (32, 32)  # match with trainer
-        # convert to gray
-        frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        frame = frame[int(frame.shape[0]/3):, :]  # /3
-        # keep the bottom 2/3 of the image
-        frame = cv.resize(frame, (2*IMG_SIZE[0], 2*IMG_SIZE[1]))
-        #frame = cv.blur(frame, (7,7), 0)
-        frame = cv.Canny(frame, 100, 200)
-        frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
-        frame = cv.resize(frame, IMG_SIZE)
 
-        images = frame
+        # ── Preprocessing (matches luxonis_preprocessing.preprocess_frame) ─
+        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        h    = gray.shape[0]
+        gray = gray[int(h / 3): int(h * 0.85), :]   # crop top 1/3 AND bottom 15 %
+        gray = cv.resize(gray, (2 * IMG_SIZE[0], 2 * IMG_SIZE[1]))
+        gray = cv.Canny(gray, 100, 200)
+        gray = cv.blur(gray, (3, 3))
+        gray = cv.resize(gray, IMG_SIZE)
 
+        # ── Build the (1,1,32,32) or (2,1,32,32) blob ─────────────────────
         if faster:
-            blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            blob = gray.astype(np.float32)[np.newaxis, np.newaxis, ...]
         else:
-            frame_flip = cv.flip(frame, 1)
-            # stack the 2 images
-            images = np.stack((frame, frame_flip), axis=0)
-            blob = cv.dnn.blobFromImages(images, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-        self.lane_keeper.setInput(blob)
-        out = -self.lane_keeper.forward()  # NOTE: MINUS SIGN IF OLD NET
-        output = out[0]
-        output_flipped = out[1] if not faster else None
+            gray_flip = cv.flip(gray, 1)
+            blob = np.stack((gray, gray_flip), axis=0)\
+                     .astype(np.float32)[:, np.newaxis, ...]
 
-        # <++>
-        e2 = output[0]
-        e3 = output[1]
+        # ── Inference (prefer onnxruntime; fall back to cv.dnn) ───────────
+        if self._lane_input_name is not None:
+            # onnxruntime path
+            if faster:
+                out = -self.lane_keeper.run(
+                    None, {self._lane_input_name: blob})[0]
+                e2 = float(out[0][0])
+                e3 = float(out[0][1])
+            else:
+                blob_orig = blob[0:1, ...]
+                blob_flip = blob[1:2, ...]
+                out_orig = -self.lane_keeper.run(
+                    None, {self._lane_input_name: blob_orig})[0]
+                out_flip = -self.lane_keeper.run(
+                    None, {self._lane_input_name: blob_flip})[0]
+                e2 = (float(out_orig[0][0]) - float(out_flip[0][0])) / 2.0
+                e3 = (float(out_orig[0][1]) - float(out_flip[0][1])) / 2.0
+        else:
+            # cv.dnn fallback (CPU only)
+            if faster:
+                cv_blob = cv.dnn.blobFromImage(
+                    gray, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            else:
+                images = np.stack((gray, cv.flip(gray, 1)), axis=0)
+                cv_blob = cv.dnn.blobFromImages(
+                    images, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            self.lane_keeper.setInput(cv_blob)
+            out = -self.lane_keeper.forward()
+            if faster:
+                e2 = float(out[0][0])
+                e3 = float(out[0][1])
+            else:
+                e2 = (float(out[0][0]) - float(out[1][0])) / 2.0
+                e3 = (float(out[0][1]) - float(out[1][1])) / 2.0
 
-        if not faster:
-            e2_flipped = output_flipped[0]
-            e3_flipped = output_flipped[1]
-
-            e2 = (e2 - e2_flipped) / 2
-            e3 = (e3 - e3_flipped) / 2
-
-        # calculate estimated of thr point ahead to get visual feedback
+        # ── Build the visual point-ahead in vehicle frame coordinates ─────
         d = DISTANCE_POINT_AHEAD
-        est_point_ahead = np.array([np.cos(e3)*d+0.2, np.sin(e3)*d])
-        # print(f"est_point_ahead: {est_point_ahead}")
+        est_point_ahead = np.array([np.cos(e3) * d + 0.2, np.sin(e3) * d])
 
-        lane_detection_time = 1000*(time()-start_time)
-        self.avg_lane_detection_time = (self.avg_lane_detection_time*self.lane_cnt + lane_detection_time)/(self.lane_cnt+1)
+        lane_detection_time = 1000 * (time() - start_time)
+        self.avg_lane_detection_time = \
+            (self.avg_lane_detection_time * self.lane_cnt + lane_detection_time) \
+            / (self.lane_cnt + 1)
         self.lane_cnt += 1
         if show_ROI:
-            cv.imshow('lane_detection', frame)
-            # cv.waitKey(1)
+            cv.imshow('lane_detection', cv.resize(gray, (320, 320),
+                                                  interpolation=cv.INTER_NEAREST))
         return e2, e3, est_point_ahead
 
     def detect_lane_ahead(self, frame, show_ROI=True, faster=False):
@@ -719,102 +875,219 @@ class Detection:
                                show_prediction=True)
         return self.sign_prediction, self.sign_conf
 
-    def detect_sign(self, frame, show_ROI=True, show_kp=True):
+    def detect_sign(self, frame, show_ROI=True, show_kp=True,
+                    depth_frame=None):
         """
-        Sign classifiier:
-        takes the whole frame as input and returns the sign name and
-        classification confidence. If the network is not confident enough,
-        it returns None sign name and 0.0 confidence
+        YOLOv8-based sign / object detector.
+
+        Replaces the legacy SIFT + BoW + linear-SVM classifier from
+        Brain_DEI with the YOLOv8 pipeline that has been tested on the
+        car (`traffic_sign/traffic_sign_node.py`).  Two extensions on
+        top of the legacy interface:
+
+          * `depth_frame` (optional) is the OAK-D Pro stereo `depth`
+            image (uint16, mm), aligned to the RGB frame.  When
+            provided, every YOLO detection gets a `distance_m` field
+            populated from the median depth of its bbox centre.
+          * The full per-class result is cached in
+            `self.last_yolo_detections` so that other parts of the
+            brain (`sign_detection_position`, `control_for_signs`)
+            can ask "what's the closest <pedestrian/car/stop sign>
+            and how far is it" without re-running YOLO.
+
+        Backward-compatible return value
+        --------------------------------
+        Same as before: `(sign_str, confidence)`.  When more than one
+        detection is present, the closest one (smallest `distance_m`)
+        wins; if depth is unavailable, the highest-confidence one wins.
         """
-        # ROI
-        TL = (240, 10)   # x1, y1
-        BR = (320, 70)   # x2, y2
-        img = frame.copy()
-        img = Detection.automatic_brightness_and_contrast(img)
-        img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-        img = img[TL[1]:BR[1], TL[0]:BR[0]]
-
-        if show_ROI:
-            cv.imshow('ROI', img)
-            Detection.draw_ROI(frame, TL, BR, show_rect=False, prediction=None,
-                               conf=None, show_prediction=False)
-
-        ratio = 1
-        img = cv.resize(img, None, fx=ratio, fy=ratio,
-                        interpolation=cv.INTER_AREA)
-        kp, des = self.sign_sift.detectAndCompute(img, None)
-        if (des is not None):
-            if show_kp:
-                cop = img.copy()
-                cop = \
-                    cv.drawKeypoints(cop,
-                                     kp,
-                                     cop,
-                                     flags=cv.
-                                     DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-                cv.imshow('keypoints', cop)
-            if len(des) < 10:
-                print('No enougth descriptors')
-                probs_array = np.zeros(len(signs_dict))
-                # the last element of the list of obstacles is no obstacles
-                probs_array[-1] = 1
-            else:
-                im_hist = Detection.ImageHistogram(self.sign_kmean_model,
-                                                   des, self.sign_no_clusters)
-                im_hist = im_hist.reshape(1, -1)
-                im_hist = self.sign_scale_model.transform(im_hist)
-                probs_array = self.sign_svm_model.predict_proba(im_hist)
-                probs_array = probs_array.reshape(-1)
-                # inserting the No sing probability
-                probs_array = np.concatenate([probs_array, [0]])
-                #print(
-                #   f'single prediction: \
-                #    {nac.SIGN_NAMES[MAP_DICT_NAMES[np.argmax(probs_array)]]}')
-        else:
-            print('No descriptors')
-            probs_array = np.zeros(len(signs_dict))
-            # the last element of the list of obstacles is no obstacles
-            probs_array[-1] = 1
-
-        # buffer of classification probabilities
-        self.sign_probs_buffer.append(probs_array)
-
-        # mean of the predicion probabilities in the buffer
-        buffer_mean = list(self.sign_probs_buffer)
-        buffer_mean = np.asarray(buffer_mean)
-        buffer_mean = np.mean(buffer_mean, axis=0)
-        buffer_mean = buffer_mean.reshape(-1)
-        pred_idx = np.argmax(buffer_mean)
-
-        # CHECK: If prediction is closed_road, treat as NO_sign
-        predicted_sign_name = nac.SIGN_NAMES[MAP_DICT_NAMES[pred_idx]]
-        if predicted_sign_name == "closed_road":
-            # Force prediction to NO_sign
+        # ── Fast-out if YOLO never loaded ─────────────────────────────────
+        if self.sign_yolo is None or self._yolo_input_name is None:
+            self.last_yolo_detections = []
             self.sign_prediction = NO_SIGN
-            self.sign_conf = 1.0
-            print(f'Closed road detected but ignored - setting to: {NO_SIGN}')
-        else:
-            # Original logic for other signs
-            new_prediction = predicted_sign_name
-            new_conf = buffer_mean[pred_idx]
-            #print('Prediction proposal:', new_prediction, int(100*new_conf))
-            # Comparison of the first two maxima of the buffer_mean
-            buffer_mean_temp = np.delete(buffer_mean, pred_idx)
-            conf_2 = buffer_mean_temp[int(np.argmax(buffer_mean_temp))]
-            # To have a good enough sign_prediction the rest of the probabilities
-            # have to be spread
-            if (new_conf - conf_2) > 0.30:
-                self.sign_prediction = new_prediction
-                self.sign_conf = new_conf
+            self.sign_conf = 0.0
+            return self.sign_prediction, self.sign_conf
 
-        print('New sign_prediction', self.sign_prediction,
-              int(100*self.sign_conf))
-        if show_ROI:
-            Detection.draw_ROI(frame, TL, BR, show_rect=True,
-                               prediction=self.sign_prediction,
-                               conf=int(100*self.sign_conf),
-                               show_prediction=True)
+        H, W = frame.shape[:2]
+
+        # ── Letterbox preprocess: resize keeping aspect ratio + pad ───────
+        scale = YOLO_IMGSZ / max(H, W)
+        new_w, new_h = int(W * scale), int(H * scale)
+        resized = cv.resize(frame, (new_w, new_h))
+        pad_top   = (YOLO_IMGSZ - new_h) // 2
+        pad_bot   = YOLO_IMGSZ - new_h - pad_top
+        pad_left  = (YOLO_IMGSZ - new_w) // 2
+        pad_right = YOLO_IMGSZ - new_w - pad_left
+        lb_img = cv.copyMakeBorder(
+            resized, pad_top, pad_bot, pad_left, pad_right,
+            cv.BORDER_CONSTANT, value=(114, 114, 114))
+        self._lb_scale = scale
+        self._lb_pad   = (pad_top, pad_left)
+
+        blob = np.transpose(
+            lb_img.astype(np.float32) / 255.0, (2, 0, 1))[np.newaxis]
+        blob = np.ascontiguousarray(blob)
+
+        # ── Inference ─────────────────────────────────────────────────────
+        try:
+            output = self.sign_yolo.run(
+                None, {self._yolo_input_name: blob})
+        except Exception as e:
+            print(f'[detect_sign] YOLO forward failed: {e}')
+            self.last_yolo_detections = []
+            self.sign_prediction = NO_SIGN
+            self.sign_conf = 0.0
+            return self.sign_prediction, self.sign_conf
+
+        # ── Postprocess: shape (1, 4+nc, N) → transpose to (N, 4+nc) ──────
+        pred = output[0][0].T
+        boxes      = pred[:, :4]
+        class_conf = pred[:, 4:]
+        scores     = np.max(class_conf, axis=1)
+        cls_ids    = np.argmax(class_conf, axis=1)
+
+        mask    = scores >= YOLO_CONF_THRESHOLD
+        boxes   = boxes[mask]
+        scores  = scores[mask]
+        cls_ids = cls_ids[mask]
+
+        detections = []
+        if len(boxes) > 0:
+            cx, cy, w, h = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+            x1 = np.clip(((cx - w / 2) - pad_left) / scale, 0, W - 1)
+            y1 = np.clip(((cy - h / 2) - pad_top)  / scale, 0, H - 1)
+            x2 = np.clip(((cx + w / 2) - pad_left) / scale, 0, W - 1)
+            y2 = np.clip(((cy + h / 2) - pad_top)  / scale, 0, H - 1)
+
+            # Per-class NMS to avoid duplicate boxes for the same class
+            for cid in np.unique(cls_ids):
+                idx = np.where(cls_ids == cid)[0]
+                nms_boxes = np.stack([x1[idx], y1[idx],
+                                      x2[idx] - x1[idx],
+                                      y2[idx] - y1[idx]], axis=1)
+                keep = cv.dnn.NMSBoxes(
+                    nms_boxes.tolist(),
+                    scores[idx].tolist(),
+                    YOLO_CONF_THRESHOLD,
+                    YOLO_IOU_THRESHOLD,
+                )
+                if keep is None or len(keep) == 0:
+                    continue
+                for k in keep:
+                    ki = int(k[0]) if isinstance(
+                        k, (list, tuple, np.ndarray)) else int(k)
+                    di = idx[ki]
+                    cls_name_yolo = YOLO_CLASS_NAMES[int(cls_ids[di])] \
+                        if int(cls_ids[di]) < len(YOLO_CLASS_NAMES) \
+                        else f'cls_{int(cls_ids[di])}'
+                    sign_name = YOLO_TO_LEGACY_SIGN.get(
+                        cls_name_yolo, cls_name_yolo)
+                    detections.append({
+                        'cls':        int(cls_ids[di]),
+                        'cls_name':   cls_name_yolo,
+                        'sign':       sign_name,
+                        'conf':       float(scores[di]),
+                        'x1':         int(x1[di]),
+                        'y1':         int(y1[di]),
+                        'x2':         int(x2[di]),
+                        'y2':         int(y2[di]),
+                        'distance_m': -1.0,
+                    })
+
+        # ── Distance from depth (median of central ROI of each bbox) ──────
+        if depth_frame is not None and len(detections) > 0:
+            dh, dw = depth_frame.shape[:2]
+            for d in detections:
+                dx1 = int(np.clip(d['x1'], 0, dw - 1))
+                dy1 = int(np.clip(d['y1'], 0, dh - 1))
+                dx2 = int(np.clip(d['x2'], 0, dw - 1))
+                dy2 = int(np.clip(d['y2'], 0, dh - 1))
+                cx_, cy_ = (dx1 + dx2) // 2, (dy1 + dy2) // 2
+                rw = max(1, (dx2 - dx1) // 4)
+                rh = max(1, (dy2 - dy1) // 4)
+                roi = depth_frame[max(0, cy_ - rh): cy_ + rh,
+                                  max(0, cx_ - rw): cx_ + rw]
+                valid = roi[(roi > DEPTH_MIN_MM) & (roi < DEPTH_MAX_MM)]
+                if valid.size > 0:
+                    d['distance_m'] = float(np.median(valid)) / 1000.0
+
+        # ── Cache ─────────────────────────────────────────────────────────
+        now = _time_mod.time()
+        for d in detections:
+            d['stamp'] = now
+        self.last_yolo_detections = detections
+        self._last_yolo_stamp     = now
+
+        # ── Pick the "best" detection for the legacy (sign, conf) return ──
+        if not detections:
+            self.sign_prediction = NO_SIGN
+            self.sign_conf       = 0.0
+        else:
+            with_dist    = [d for d in detections if d['distance_m'] > 0]
+            without_dist = [d for d in detections if d['distance_m'] <= 0]
+            ordered = sorted(with_dist, key=lambda dd: dd['distance_m']) + \
+                      without_dist
+            best = ordered[0] if ordered else None
+            if best is None:
+                self.sign_prediction = NO_SIGN
+                self.sign_conf       = 0.0
+            else:
+                self.sign_prediction = best['sign']
+                self.sign_conf       = best['conf']
+
+        # ── Optional debug visualisation ──────────────────────────────────
+        if show_ROI and len(detections) > 0:
+            vis = frame.copy()
+            for d in detections:
+                cv.rectangle(vis, (d['x1'], d['y1']),
+                             (d['x2'], d['y2']), (0, 200, 0), 2)
+                dist_str = (f"{d['distance_m']:.2f}m"
+                            if d['distance_m'] > 0 else 'n/a')
+                lbl = f"{d['cls_name']} {dist_str} ({d['conf']:.0%})"
+                cv.putText(vis, lbl, (d['x1'], max(0, d['y1'] - 5)),
+                           cv.FONT_HERSHEY_SIMPLEX, 0.5,
+                           (255, 255, 255), 1)
+            try:
+                cv.imshow('sign_detection', cv.resize(vis, (640, 360)))
+            except Exception:
+                pass
         return self.sign_prediction, self.sign_conf
+
+    def get_yolo_object(self, class_name, max_age=0.5):
+        """
+        Helper that returns the most recent YOLO detection of `class_name`
+        (e.g. 'pedestrian', 'car', 'roadblock', 'trafficlight'), or None.
+
+        `max_age` (seconds) caps how stale the cache may be.  This is
+        useful because `detect_sign` is not necessarily called every
+        single brain tick — it is gated by the FSM and by
+        `control_for_signs`.
+
+        The returned dict has the same fields as `last_yolo_detections`
+        entries: cls, cls_name, sign, conf, x1, y1, x2, y2, distance_m,
+        stamp.
+
+        IMPORTANT: this method only LOOKS UP cached YOLO output, it
+        does not run YOLO itself.  `control_for_car` and
+        `control_for_pedestrian` (which the user wants kept untouched)
+        therefore continue to base their decisions on LIDAR cones and
+        HSV pink as before; this is just a convenience for any new
+        routine that wants depth-aware obstacle info.
+        """
+        if not self.last_yolo_detections:
+            return None
+        if (_time_mod.time() - self._last_yolo_stamp) > max_age:
+            return None
+        candidates = [d for d in self.last_yolo_detections
+                      if d['cls_name'] == class_name
+                      or d['sign'] == class_name]
+        if not candidates:
+            return None
+        with_dist    = [d for d in candidates if d['distance_m'] > 0]
+        without_dist = [d for d in candidates if d['distance_m'] <= 0]
+        if with_dist:
+            return min(with_dist, key=lambda dd: dd['distance_m'])
+        return max(without_dist, key=lambda dd: dd['conf'])
     """
     def detect_objects_with_yolo(self,frame, show=False):
 

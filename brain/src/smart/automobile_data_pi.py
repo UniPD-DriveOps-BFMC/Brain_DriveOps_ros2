@@ -2,8 +2,25 @@
 """
 automobile_data_pi.py — ROS2 Jazzy
 All publishers, subscribers, and callbacks for the physical car.
+
+Camera path
+-----------
+This file supports OPTION A from the integration plan: the brain
+process opens the OAK-D Pro pipeline directly (via DepthAI) and
+publishes both the RGB frame on `self.frame` and the stereo depth
+on `self.depth_frame`.  The depthai_ros_driver node is therefore
+NOT required at runtime; only `main_brain.py` and the micro-ROS
+agent (for the Nucleo) need to be running.
+
+If `trig_cam_oak=True` (the default in this option-A build), a
+small daemon thread polls the DepthAI output queues at the camera
+rate (~30 Hz) and updates `self.frame` / `self.depth_frame`
+in-place.  The legacy ROS-image subscriber (`trig_cam=True`,
+listening on /oak/rgb/image_raw) is preserved for the simulator
+path and for laptop-side testing.
 """
 
+import threading
 import rclpy
 from rclpy.node import Node
 import collections
@@ -17,6 +34,15 @@ from utils.msg       import IMU, Localisation, Vehicles, Conditions
 from automobile_data_interface import Automobile_Data
 import helper_functions as hf
 
+# DepthAI is imported lazily so that the simulator path (no OAK-D
+# attached, no DepthAI installed) still works.
+try:
+    import depthai as dai
+    _DEPTHAI_AVAILABLE = True
+except Exception:
+    dai = None
+    _DEPTHAI_AVAILABLE = False
+
 SONAR_THRESHOLD      = 5
 SONAR_DEQUE_LENGTH   = 20
 TOF_DEQUE_LENGTH     = 10
@@ -24,17 +50,140 @@ IMU_DEQUE_LENGTH     = 10
 CLASSIFY_DEQUE_LENGTH = 4
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# OAK-D Pro direct pipeline (option A)
+# ─────────────────────────────────────────────────────────────────────────
+class OakDPipeline:
+    """
+    Wraps the DepthAI device + pipeline for the OAK-D Pro mounted on
+    the car.  Runs in a daemon thread that polls the RGB and stereo
+    depth output queues and writes the latest values into
+    `self.rgb_frame` / `self.depth_frame`.  The brain reads these
+    attributes via the wrappers `Automobile_Data.frame` /
+    `Automobile_Data.depth_frame`.
+
+    Mirrors the pipeline used by `traffic_sign_node.py` so the YOLO
+    weights (`models/best2.onnx`) operate on identical inputs:
+
+        ┌──────────────┐           ┌────────────────┐
+        │  CAM_A RGB   │ 1280×720  │   self.rgb     │
+        └──────────────┘           └────────────────┘
+        ┌──────────────┐                    ▲
+        │ CAM_B mono   │ 640×400  ┐         │
+        ├──────────────┤          │ Stereo  │ 1280×720
+        │ CAM_C mono   │ 640×400  ┘ Depth   │ depth aligned
+        └──────────────┘            FAST_   │ to CAM_A
+                                    DENSITY ▼
+                                    ┌──────────────┐
+                                    │ self.depth   │
+                                    └──────────────┘
+    """
+
+    def __init__(self, rgb_size=(1280, 720), mono_size=(640, 400),
+                 stereo_preset='FAST_DENSITY'):
+        if not _DEPTHAI_AVAILABLE:
+            raise RuntimeError(
+                'DepthAI is not installed; cannot open OAK-D Pro pipeline. '
+                'Install with `pip install depthai>=3.0` or use the '
+                'simulator profile.')
+
+        self._device   = dai.Device()
+        self._pipeline = dai.Pipeline(self._device)
+
+        # ── RGB cam (CAM_A) ──────────────────────────────────────────────
+        cam = self._pipeline.create(dai.node.Camera).build(
+            dai.CameraBoardSocket.CAM_A)
+        cam_out = cam.requestOutput(rgb_size, dai.ImgFrame.Type.BGR888p)
+
+        # ── Mono cams (CAM_B, CAM_C) ─────────────────────────────────────
+        mono_l = self._pipeline.create(dai.node.Camera).build(
+            dai.CameraBoardSocket.CAM_B)
+        mono_r = self._pipeline.create(dai.node.Camera).build(
+            dai.CameraBoardSocket.CAM_C)
+
+        # ── Stereo depth ─────────────────────────────────────────────────
+        stereo = self._pipeline.create(dai.node.StereoDepth)
+        preset_map = {
+            'FAST_DENSITY':  dai.node.StereoDepth.PresetMode.FAST_DENSITY,
+            'HIGH_DETAIL':   dai.node.StereoDepth.PresetMode.HIGH_DETAIL,
+            'HIGH_ACCURACY': dai.node.StereoDepth.PresetMode.HIGH_ACCURACY,
+        }
+        stereo.setDefaultProfilePreset(
+            preset_map.get(stereo_preset,
+                           dai.node.StereoDepth.PresetMode.FAST_DENSITY))
+        stereo.setLeftRightCheck(True)
+        stereo.setSubpixel(False)
+        stereo.setExtendedDisparity(True)
+        stereo.setDepthAlign(dai.CameraBoardSocket.CAM_A)
+        stereo.setOutputSize(*rgb_size)
+
+        mono_l.requestOutput(mono_size,
+                             dai.ImgFrame.Type.GRAY8).link(stereo.left)
+        mono_r.requestOutput(mono_size,
+                             dai.ImgFrame.Type.GRAY8).link(stereo.right)
+
+        self._q_rgb   = cam_out.createOutputQueue(maxSize=2, blocking=False)
+        self._q_depth = stereo.depth.createOutputQueue(maxSize=2,
+                                                       blocking=False)
+
+        self._pipeline.start()
+
+        # Latest values, updated by the daemon thread
+        self.rgb_frame   = None  # uint8  HxWx3 (BGR)
+        self.depth_frame = None  # uint16 HxW   (mm)
+        self._lock       = threading.Lock()
+        self._stopped    = threading.Event()
+        self._thread     = threading.Thread(
+            target=self._poll_loop, name='oakd_poll', daemon=True)
+        self._thread.start()
+
+    def _poll_loop(self):
+        while not self._stopped.is_set():
+            try:
+                in_rgb   = self._q_rgb.tryGet()
+                in_depth = self._q_depth.tryGet()
+            except Exception as e:
+                # On device disconnect, sleep a bit and retry
+                self._stopped.wait(0.05)
+                continue
+            updated = False
+            if in_rgb is not None:
+                rgb = in_rgb.getCvFrame()
+                with self._lock:
+                    self.rgb_frame = rgb
+                updated = True
+            if in_depth is not None:
+                depth = in_depth.getFrame()
+                with self._lock:
+                    self.depth_frame = depth
+                updated = True
+            if not updated:
+                self._stopped.wait(0.005)  # 200 Hz idle poll
+
+    def stop(self):
+        self._stopped.set()
+        try:
+            self._thread.join(timeout=1.0)
+        except Exception:
+            pass
+        try:
+            self._device.close()
+        except Exception:
+            pass
+
+
 class AutomobileDataPi(Automobile_Data, Node):
 
     def __init__(self,
-                 trig_control: bool = True,
-                 trig_bno:     bool = False,
-                 trig_enc:     bool = False,
-                 trig_sonar:   bool = False,
-                 trig_cam:     bool = False,
-                 trig_gps:     bool = False,
-                 trig_lidar:   bool = False,
-                 trig_tof:     bool = False,
+                 trig_control:  bool = True,
+                 trig_bno:      bool = False,
+                 trig_enc:      bool = False,
+                 trig_sonar:    bool = False,
+                 trig_cam:      bool = False,
+                 trig_gps:      bool = False,
+                 trig_lidar:    bool = False,
+                 trig_tof:      bool = False,
+                 trig_cam_oak:  bool = True,
                  ) -> None:
 
         Automobile_Data.__init__(self)
@@ -64,7 +213,10 @@ class AutomobileDataPi(Automobile_Data, Node):
         self.lidar_ranges                   = 0
         self.yaw_true                       = 0.0
         self.flag_localisation              = False
-        self.frame                          = None
+        self.frame                          = None   # set by _image_callback (ROS) or by _refresh_oak_frames
+        self.depth_frame                    = None   # uint16 HxW (mm), populated only when trig_cam_oak=True
+        self._oak                           = None   # OakDPipeline instance, see below
+        self._bridge                        = None   # CvBridge, only used when trig_cam=True (option B)
 
         # ── Publishers & subscribers ──────────────────────────────────── #
         if trig_control:
@@ -105,9 +257,32 @@ class AutomobileDataPi(Automobile_Data, Node):
                 Float32, '/automobile/sonar/left',   self.left_sonar_callback,   1)
 
         if trig_cam:
+            # ── Legacy path: subscribe to /oak/rgb/image_raw ─────────────
+            # Used by the simulator (Gazebo publishes there) and by the
+            # depthai_ros_driver path (option B) if the user later
+            # decides to spin one up alongside the brain.
             self._bridge = CvBridge()
             self.create_subscription(
                 Image, '/oak/rgb/image_raw', self._image_callback, 1)
+
+        if trig_cam_oak:
+            # ── Option A: open the OAK-D Pro directly from the brain ─────
+            # Spawns a daemon thread that polls DepthAI queues at the
+            # camera rate.  `self.frame` and `self.depth_frame` are
+            # refreshed in-place; the brain reads them just like before.
+            try:
+                self._oak = OakDPipeline()
+                # Replace the static `self.frame` attribute with a
+                # property-style refresh: a 50 Hz timer copies the
+                # latest values out of the DepthAI thread under a lock.
+                self.create_timer(1.0 / 50.0, self._refresh_oak_frames)
+                self.get_logger().info(
+                    'OAK-D Pro pipeline opened (option A, direct DepthAI)')
+            except Exception as e:
+                self.get_logger().error(
+                    f'OAK-D Pro init failed: {e}.  '
+                    f'Lane keeper and YOLO will not receive frames.')
+                self._oak = None
 
         if trig_gps:
             # GPS comes from the competition bridge on this topic (mm → m already converted)
@@ -209,7 +384,28 @@ class AutomobileDataPi(Automobile_Data, Node):
         self.reachedPosition = data.data
 
     def _image_callback(self, msg: Image) -> None:
+        # Used by the simulator and by option-B (depthai_ros_driver).
+        # When the OAK-D direct pipeline is also active (option A), the
+        # 50 Hz timer below overwrites self.frame with the DepthAI frame,
+        # so this callback effectively becomes a no-op on the real car.
+        if self._bridge is None:
+            # Defensive: if trig_cam=False this callback was never wired
+            # into a subscription, but a pathological caller could still
+            # invoke it.  Bail out instead of crashing on AttributeError.
+            return
         self.frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+
+    def _refresh_oak_frames(self) -> None:
+        """Periodic copy from the OAK-D daemon thread to brain-visible state."""
+        if self._oak is None:
+            return
+        with self._oak._lock:
+            rgb   = self._oak.rgb_frame
+            depth = self._oak.depth_frame
+        if rgb is not None:
+            self.frame = rgb
+        if depth is not None:
+            self.depth_frame = depth
 
     # ═══════════════════════════════════════════════════════════════════ #
     #  COMMAND ACTIONS                                                    #
@@ -281,4 +477,9 @@ class AutomobileDataPi(Automobile_Data, Node):
         self.pub_localisation.publish(msg)
 
     def destroy_node(self) -> None:
+        if self._oak is not None:
+            try:
+                self._oak.stop()
+            except Exception:
+                pass
         super().destroy_node()

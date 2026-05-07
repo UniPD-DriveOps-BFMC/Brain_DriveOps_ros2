@@ -99,12 +99,26 @@ y_orig = 0.0
 # stop the car with ctrl+c
 def handler(signum, frame):
     print("Exiting ...")
-    car.stop()
+    try:
+        car.stop()
+    except Exception:
+        pass
     if nac.SIMULATOR_FLAG:
         os.system('rosservice call gazebo/pause_physics')
     cv.destroyAllWindows()
-    sleep(.99)
-    exit()
+    sleep(.5)
+    # Cleanly close the OAK-D Pro pipeline (option A).  Without this the
+    # DepthAI daemon thread keeps the USB device locked and the next
+    # main_brain.py launch fails with "Device already in use".
+    try:
+        car.destroy_node()
+    except Exception:
+        pass
+    try:
+        rclpy.shutdown()
+    except Exception:
+        pass
+    exit(0)
 
 
 if __name__ == '__main__':
@@ -115,7 +129,7 @@ if __name__ == '__main__':
     # init the car data
     if nac.SIMULATOR_FLAG:
         # os.system('rosservice call /gazebo/reset_simulation')
-        os.system('rosservice call gazebo/unpause_physics')
+        # os.system('rosservice call gazebo/unpause_physics')
         car = AutomobileDataSimulator(trig_cam=True,
                                       trig_gps=True, 
                                       trig_bno=True, 
@@ -125,14 +139,22 @@ if __name__ == '__main__':
                                       trig_lidar=True,
                                       trig_tof=True)  # <++>
     else:
-        car = AutomobileDataPi(trig_cam=True,
+        # Option A: the brain opens the OAK-D Pro pipeline directly (no
+        # depthai_ros_driver / no /oak/rgb/image_raw topic needed at
+        # runtime).  The legacy ROS-image subscriber is therefore left
+        # disabled (trig_cam=False).  If you want to switch to option B
+        # (run depthai_ros_driver as a separate process and let the
+        # brain subscribe to its topics), set trig_cam=True and
+        # trig_cam_oak=False.
+        car = AutomobileDataPi(trig_cam=False,
+                               trig_cam_oak=True,
                                trig_gps=True,
-                               trig_bno=True, 
+                               trig_bno=True,
                                trig_enc=True,
                                trig_control=True,
                                trig_sonar=True,
                                trig_lidar=True,
-                               trig_tof=True) 
+                               trig_tof=True)
     sleep(1.5)
 
     signal.signal(signal.SIGINT, handler)
