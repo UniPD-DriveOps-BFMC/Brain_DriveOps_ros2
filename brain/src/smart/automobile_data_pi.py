@@ -109,8 +109,7 @@ SIGN_WORLD_POSITIONS = {
 
 # Camera horizontal FOV in radians — calibrate this for your lens
 CAMERA_HFOV_RAD = np.deg2rad(62.2)
-IMG_WIDTH       = 320  # pixels
-
+# IMG_WIDTH = 1280 # not sure about 1280
 # Correction tuning
 SIGN_MAX_DIST_M       = 2.5   # ignore detections farther than this
 SIGN_MAX_JUMP_M       = 0.8   # reject correction if it would move estimate >this
@@ -494,6 +493,7 @@ class AutomobileDataPi(Automobile_Data, Node):
         -------
         bool : True if a correction was applied.
         """
+        IMG_WIDTH = self.car.frame.shape[1]
         sign_class = detection.get('sign', '')
         distance_m = detection.get('distance_m', -1.0)
         conf       = detection.get('conf', 0.0)
@@ -534,6 +534,16 @@ class AutomobileDataPi(Automobile_Data, Node):
         bbox_cx     = (x1 + x2) / 2.0
         # positive = sign is to the right of centre → car heading rotated right
         angle_offset = ((bbox_cx - IMG_WIDTH / 2.0) / IMG_WIDTH) * CAMERA_HFOV_RAD
+
+        # ---------------other implementation - more precise - pinhole camera model
+        # bbox_cx = (x1 + x2) / 2.0
+
+        # fx = (img_width / 2.0) / np.tan(CAMERA_HFOV_RAD / 2.0)
+
+        # cx = img_width / 2.0
+
+        # angle_offset = np.arctan((bbox_cx - cx) / fx)
+        # ---------------end other implementation
 
         sign_world_angle = self.yaw + angle_offset  # [rad], world frame
 
