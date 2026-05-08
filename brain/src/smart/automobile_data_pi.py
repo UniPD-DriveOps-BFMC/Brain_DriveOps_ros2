@@ -49,6 +49,74 @@ TOF_DEQUE_LENGTH     = 10
 IMU_DEQUE_LENGTH     = 10
 CLASSIFY_DEQUE_LENGTH = 4
 
+# Known sign positions on the map, grouped by class
+SIGN_WORLD_POSITIONS = {
+    'stop': [
+        (0.410312, 11.53633),
+        (0.410312,  4.934624),
+        (0.814555,  9.982114),
+        (1.387690,  7.540225),
+        (2.789737,  1.728136),
+        (3.768965,  7.540225),
+        (3.193981,  6.560997),
+        (5.263525,  1.728136),
+        (16.86365,  1.321081),
+        (17.84570,  4.359640),
+    ],
+    'priority': [
+        (0.405650,  8.115209),
+        (0.814555,  6.560997),
+        (5.263525,  4.934624),
+        (5.667769,  3.382262),
+        (4.688541,  0.746096),
+        (5.667769,  6.560997),
+    ],
+    'one_way': [
+        (16.86646,  4.934624),
+    ],
+    'cross_walk': [
+        (9.060688,  0.748908),
+        (10.43173,  4.364302),
+        (16.86646,  3.200937),
+        (18.83602,  2.549648),
+        (5.689972,  8.115209),
+        (1.387690, 10.53490),
+        (1.894659, 10.96415),
+        (5.263525,  8.622178),
+    ],
+    'park': [
+        (9.950578,  0.748355),
+    ],
+    'roundabout': [
+        (16.55236, 11.40081),
+        (17.49554, 12.74824),
+        (17.90164, 10.45578),
+        (18.84482, 11.80506),
+    ],
+    'hw_enter': [
+        (15.00000, 11.85258),
+        (7.366563, 12.94125),
+    ],
+    'hw_exit': [
+        (6.948529, 13.34359),
+        (16.19118, 11.40086),
+    ],
+    'closed_road': [
+        (7.309905,  3.789318),
+        (16.28937,  0.746574),
+    ],
+}
+
+# Camera horizontal FOV in radians — calibrate this for your lens
+CAMERA_HFOV_RAD = np.deg2rad(62.2)
+IMG_WIDTH       = 320  # pixels
+
+# Correction tuning
+SIGN_MAX_DIST_M       = 2.5   # ignore detections farther than this
+SIGN_MAX_JUMP_M       = 0.8   # reject correction if it would move estimate >this
+SIGN_SEARCH_RADIUS_M  = 3.0   # only consider map signs within this radius of x_est
+SIGN_ALPHA            = 0.6   # blend weight: 1.0 = hard snap, 0.0 = ignore
+
 
 # ─────────────────────────────────────────────────────────────────────────
 # OAK-D Pro direct pipeline (option A)
@@ -217,6 +285,11 @@ class AutomobileDataPi(Automobile_Data, Node):
         self.depth_frame                    = None   # uint16 HxW (mm), populated only when trig_cam_oak=True
         self._oak                           = None   # OakDPipeline instance, see below
         self._bridge                        = None   # CvBridge, only used when trig_cam=True (option B)
+
+        # Tracks which map signs have already been used for a correction
+        # key: (sign_class, index_in_list), value: True
+        self._used_sign_landmarks = set()
+        self._last_corrected_sign  = None  # for logging
 
         # ── Publishers & subscribers ──────────────────────────────────── #
         if trig_control:
@@ -406,6 +479,87 @@ class AutomobileDataPi(Automobile_Data, Node):
             self.frame = rgb
         if depth is not None:
             self.depth_frame = depth
+
+    def correct_position_with_sign(self, detection: dict) -> bool:
+        """
+        Corrects x_est / y_est using a YOLO sign detection with known distance.
+
+        Parameters
+        ----------
+        detection : dict
+            One entry from self.last_yolo_detections (fields: sign, distance_m,
+            x1, x2, conf).
+
+        Returns
+        -------
+        bool : True if a correction was applied.
+        """
+        sign_class = detection.get('sign', '')
+        distance_m = detection.get('distance_m', -1.0)
+        conf       = detection.get('conf', 0.0)
+        x1         = detection.get('x1', 0)
+        x2         = detection.get('x2', IMG_WIDTH)
+
+        # ── Gate 1: sign class must be in our map ────────────────────────────
+        if sign_class not in SIGN_WORLD_POSITIONS:
+            return False
+
+        # ── Gate 2: distance must be valid and close enough ──────────────────
+        if distance_m <= 0.0 or distance_m > SIGN_MAX_DIST_M:
+            return False
+
+        # ── Gate 3: confidence threshold ─────────────────────────────────────
+        if conf < 0.60:
+            return False
+
+        # ── Find the closest unused map sign of this class ───────────────────
+        candidates = SIGN_WORLD_POSITIONS[sign_class]
+        best_idx   = None
+        best_dist  = float('inf')
+
+        for i, (sx, sy) in enumerate(candidates):
+            if (sign_class, i) in self._used_sign_landmarks:
+                continue  # already corrected with this landmark
+            d_to_estimate = np.hypot(sx - self.x_est, sy - self.y_est)
+            if d_to_estimate < SIGN_SEARCH_RADIUS_M and d_to_estimate < best_dist:
+                best_dist = d_to_estimate
+                best_idx  = i
+
+        if best_idx is None:
+            return False  # no unused sign nearby in the map
+
+        sx, sy = candidates[best_idx]
+
+        # ── Compute angle to sign from bbox centre in image ──────────────────
+        bbox_cx     = (x1 + x2) / 2.0
+        # positive = sign is to the right of centre → car heading rotated right
+        angle_offset = ((bbox_cx - IMG_WIDTH / 2.0) / IMG_WIDTH) * CAMERA_HFOV_RAD
+
+        sign_world_angle = self.yaw + angle_offset  # [rad], world frame
+
+        # ── Compute where the car must be ────────────────────────────────────
+        corrected_x = sx - distance_m * np.cos(sign_world_angle)
+        corrected_y = sy - distance_m * np.sin(sign_world_angle)
+
+        # ── Gate 4: sanity — don't jump more than SIGN_MAX_JUMP_M ───────────
+        jump = np.hypot(corrected_x - self.x_est, corrected_y - self.y_est)
+        if jump > SIGN_MAX_JUMP_M:
+            print(f'[LANDMARK] {sign_class}[{best_idx}] rejected — jump={jump:.2f}m > {SIGN_MAX_JUMP_M}m')
+            return False
+
+        # ── Apply soft correction ─────────────────────────────────────────────
+        old_x, old_y = self.x_est, self.y_est
+        self.x_est = (1.0 - SIGN_ALPHA) * self.x_est + SIGN_ALPHA * corrected_x
+        self.y_est = (1.0 - SIGN_ALPHA) * self.y_est + SIGN_ALPHA * corrected_y
+
+        # ── Mark landmark as used ─────────────────────────────────────────────
+        self._used_sign_landmarks.add((sign_class, best_idx))
+        self._last_corrected_sign = sign_class
+
+        print(f'[LANDMARK] {sign_class}[{best_idx}] @ ({sx:.2f},{sy:.2f}) '
+            f'dist={distance_m:.2f}m jump={jump:.2f}m '
+            f'({old_x:.2f},{old_y:.2f}) → ({self.x_est:.2f},{self.y_est:.2f})')
+        return True
 
     # ═══════════════════════════════════════════════════════════════════ #
     #  COMMAND ACTIONS                                                    #

@@ -1905,11 +1905,7 @@ class Brain:
 
     def control_for_signs(self):
         prev_sign = self.curr_sign
-        # Re-enabled after the perception refactor: the legacy SIFT+SVM
-        # classifier was unreliable on the BFMC track lighting and was
-        # therefore disabled with an early `return`.  We now use the
-        # YOLOv8 model trained on the BFMC sign set plus
-        # OAK-D stereo depth — see Detection.detect_sign.
+
         if not self.conditions[nac.REROUTING]:
             sign, confidence = self.detect.detect_sign(
                 self.car.frame,
@@ -1917,6 +1913,19 @@ class Brain:
                 show_kp=SHOW_IMGS,
                 depth_frame=self.car.depth_frame,
             )
+
+            # ── Landmark-based localisation correction ────────────────────────
+            # Iterate over every detection that came back with a valid depth.
+            # correct_position_with_sign() handles all gating internally
+            # (min/max distance, confidence, search radius, max jump, dedup).
+            # We stop after the first accepted correction to avoid double-
+            # correcting in the same tick (e.g. two signs visible at once).
+            for det in self.detect.last_yolo_detections:
+                if det['distance_m'] > 0:
+                    if self.car.correct_position_with_sign(det):
+                        break
+            # ─────────────────────────────────────────────────────────────────
+
             if sign != nac.NO_SIGN and sign != self.curr_sign:
                 self.curr_sign = sign
                 self.curr_sign_confidence = confidence
