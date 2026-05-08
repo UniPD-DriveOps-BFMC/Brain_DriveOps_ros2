@@ -104,7 +104,7 @@ def handler(signum, frame):
     except Exception:
         pass
     if nac.SIMULATOR_FLAG:
-        os.system('rosservice call gazebo/pause_physics')
+        os.system('ros2 service call /gazebo/pause_physics std_srvs/srv/Empty')
     cv.destroyAllWindows()
     sleep(.5)
     # Cleanly close the OAK-D Pro pipeline (option A).  Without this the
@@ -157,6 +157,11 @@ if __name__ == '__main__':
                                trig_tof=True)
     sleep(1.5)
 
+    # Start spinning immediately so ROS2 callbacks (encoder, GPS, IMU)
+    # are processed during the heavy ONNX model loading that follows.
+    spin_thread = threading.Thread(target=rclpy.spin, args=(car,), daemon=True)
+    spin_thread.start()
+
     signal.signal(signal.SIGINT, handler)
 
     # init trajectory
@@ -188,8 +193,6 @@ if __name__ == '__main__':
     
     
     hf.show_track(track, car, nac.SHOW_IMGS)
-    spin_thread = threading.Thread(target=rclpy.spin, args=(car,), daemon=True)
-    spin_thread.start()
 
 
     try:

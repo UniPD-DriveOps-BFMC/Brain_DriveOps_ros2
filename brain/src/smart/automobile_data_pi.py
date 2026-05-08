@@ -28,7 +28,12 @@ import numpy as np
 
 from std_msgs.msg    import Float32, Bool, String, UInt8
 from sensor_msgs.msg import LaserScan, Image
-from cv_bridge       import CvBridge
+try:
+    from cv_bridge import CvBridge
+    _CV_BRIDGE_AVAILABLE = True
+except ImportError:
+    CvBridge = None
+    _CV_BRIDGE_AVAILABLE = False
 from utils.msg       import IMU, Localisation, Vehicles, Conditions
 
 from automobile_data_interface import Automobile_Data
@@ -190,6 +195,7 @@ class AutomobileDataPi(Automobile_Data, Node):
         Node.__init__(self, 'AutomobileDataPi')
 
         self.YAW_GLOBAL_OFFSET = -90  # degrees — change before starting
+        self.yaw_offset = np.deg2rad(self.YAW_GLOBAL_OFFSET)
 
         # ── Extra buffers ─────────────────────────────────────────────── #
         self.right_sonar_distance_buffer    = collections.deque(maxlen=SONAR_DEQUE_LENGTH)
@@ -261,6 +267,8 @@ class AutomobileDataPi(Automobile_Data, Node):
             # Used by the simulator (Gazebo publishes there) and by the
             # depthai_ros_driver path (option B) if the user later
             # decides to spin one up alongside the brain.
+            if not _CV_BRIDGE_AVAILABLE:
+                raise RuntimeError('cv_bridge is required when trig_cam=True but is not installed.')
             self._bridge = CvBridge()
             self.create_subscription(
                 Image, '/oak/rgb/image_raw', self._image_callback, 1)

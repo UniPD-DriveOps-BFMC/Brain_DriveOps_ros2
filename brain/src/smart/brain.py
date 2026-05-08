@@ -228,6 +228,11 @@ ACHIEVEMENTS = {
 # signs
 SIGN_DIST_THRESHOLD = 0.5
 SIGN_CLASSIFY_THRESHOLD = 0.8
+# YOLO voting / robustness
+SIGN_CONF_THRESHOLD  = 0.6   # minimum per-frame YOLO confidence to count
+SIGN_VOTE_WINDOW     = 7      # rolling buffer length
+SIGN_VOTE_THRESHOLD  = 4      # min votes in window to accept a sign (4/7)
+SIGN_DECAY_FRAMES    = 10     # consecutive NO_SIGN frames before curr_sign resets
 
 # sempahores
 #SEMAPHORE_IS_ALWAYS_GREEN = False if not SIMULATOR_FLAG else True
@@ -482,8 +487,11 @@ class Brain:
         self.sign_types = np.loadtxt('data/sign_types.txt', dtype=int)
         assert len(self.sign_points) == len(self.sign_types), f'len(self.sign_points): {len(self.sign_points)}, len(self.sign_types): {len(self.sign_types)}'
         self.sign_seen = np.zeros(len(self.sign_types))
-        self.curr_sign = nac.NO_SIGN
-        self.curr_sign_confidence = 0
+        self.curr_sign = nac.NO_SIGN          # live YOLO tracker (fast, may fluctuate)
+        self.curr_sign_confidence = 0.0
+        self._sign_vote_buffer    = collections.deque(maxlen=SIGN_VOTE_WINDOW)
+        self._sign_no_detect_cnt  = 0
+        self.confirmed_sign = nac.NO_SIGN    # map-validated sign used for decisions
         self.past_frames = deque(maxlen=DEQUE_OF_PAST_FRAMES_LENGTH)
 
         self.frame_for_stopline_angle = None
@@ -872,13 +880,28 @@ class Brain:
                                     nac.SLOW_DOWN,
                                     nac.DETECT_STOPLINE])
 
-        result = self.sign_detection_position()    # detect sign and position Thomas
+        # Reset sign state on first tick so stale lane-following detections
+        # don't bleed into the stopline decision.
+        if self.curr_state.just_switched:
+            self.curr_state.just_switched = False
+            self.curr_sign = nac.NO_SIGN
+            self.curr_sign_confidence = 0.0
+            self.confirmed_sign = nac.NO_SIGN
+            self._sign_vote_buffer.clear()
+            self._sign_no_detect_cnt = 0
+
+        # confirmed_sign: map-validated result used for the stopline decision.
+        # curr_sign: live YOLO tracker (also updated by control_for_signs).
+        result = self.sign_detection_position()
         if result is not None:
             sign_detect, sign_position = result
-            print(f"Sign detected: {sign_detect}, position: {sign_position}")
+            self.confirmed_sign = sign_detect
+            print(f"Confirmed sign: {sign_detect}, position: {sign_position}")
             self.env.publish_obstacle(sign_detect, sign_position[0], sign_position[1])
         else:
-            print("No sign detected.")
+            self.confirmed_sign = nac.NO_SIGN
+            print("No confirmed sign for this stopline.")
+
         # Convert current checkpoint to int for comparison
         current_cp = int(self.checkpoints[self.checkpoint_idx])
 
@@ -887,11 +910,6 @@ class Brain:
 
         if current_cp not in led_on_checkpoints:
             self.car.publish_led_control(False)  # Turn off LED
-
-        if self.curr_state.just_switched:
-            # cv.imwrite(f'asl/asl_{int(time() * 1000)}.png', self.car.frame)
-            self.curr_state.just_switched = False
-            #self.curr_sign = "NO_sign"
 
         decide_next_state = self.approaching_stopline_vision()
 
@@ -911,18 +929,39 @@ class Brain:
             self.conditions[nac.HIGHWAY] = False
             next_event_name = self.next_event.name
             print(f"########################## NEXT EVENT {next_event_name}")
+            print(f'[decision] confirmed_sign={self.confirmed_sign}  curr_sign={self.curr_sign}')
+
+            # Soft sanity check: log when YOLO sign disagrees with the expected
+            # event type.  Never blocks the event — GPS is authoritative.
+            _expected_sign = {
+                nac.INTERSECTION_STOP_EVENT:       nac.STOP,
+                nac.INTERSECTION_PRIORITY_EVENT:   nac.PRIORITY,
+                nac.ROUNDABOUT_EVENT:              nac.ROUNDABOUT,
+                nac.CROSSWALK_EVENT:               nac.CROSSWALK,
+                nac.HIGHWAY_ENTRANCE_EVENT:        nac.HW_ENTER,
+                nac.HIGHWAY_EXIT_EVENT:            nac.HW_EXIT,
+            }.get(next_event_name)
+            if _expected_sign is not None and self.curr_sign != nac.NO_SIGN:
+                if self.curr_sign == _expected_sign:
+                    print(f'[sanity] YOLO confirms event: {next_event_name}')
+                else:
+                    print(f'[sanity] WARNING: expected sign={_expected_sign} '
+                          f'but YOLO sees={self.curr_sign} — proceeding with GPS event')
+
             # Events with stopline
-            if next_event_name == nac.INTERSECTION_STOP_EVENT:  
-                if self.curr_sign=="priority":
+            if next_event_name == nac.INTERSECTION_STOP_EVENT:
+                # default: wait — override only if map confirmed a priority sign
+                if self.confirmed_sign == "priority":
                     self.switch_to_state(nac.TRACKING_LOCAL_PATH)
-                else: 
+                else:
                     self.switch_to_state(nac.WAITING_AT_STOPLINE)
             elif next_event_name == nac.INTERSECTION_TRAFFIC_LIGHT_EVENT:
                 self.switch_to_state(nac.WAITING_FOR_GREEN)
             elif next_event_name == nac.INTERSECTION_PRIORITY_EVENT:
-                if self.curr_sign=="stop":
+                # default: go — override only if map confirmed a stop sign
+                if self.confirmed_sign == "stop":
                     self.switch_to_state(nac.WAITING_AT_STOPLINE)
-                else: 
+                else:
                     self.switch_to_state(nac.TRACKING_LOCAL_PATH)
             elif next_event_name == nac.ROUNDABOUT_EVENT:
                 if dist < CAR_DISTANCE_THRESHOLD_ROUND and ARENA:
@@ -987,76 +1026,75 @@ class Brain:
         return decide_next_state
 
     def sign_detection_position(self):
-
         """
-        Finds a matching sign for the current stopline.
+        Finds the map-confirmed sign for the current stopline.
 
-        Two-tier resolution:
-          1. If YOLO has produced a fresh detection in the last 0.5 s,
-             pick the closest detected sign and return it together with
-             the brain's current estimated position.  This makes the
-             routine work even when the static `data/sign_with_position.txt`
-             is incomplete or out of date.
-          2. Otherwise fall back to the legacy file-based lookup that
-             matches the current stopline coordinate to a hardcoded
-             sign list.
+        Cross-validation rules (in priority order):
+          1. map + YOLO agree  → confirmed, use that sign.
+          2. map only          → trust the map (YOLO may have missed it).
+          3. YOLO only         → NOT confirmed (stopline not in map); return None
+                                 so the default event behaviour is preserved.
+          4. neither           → return None.
+
+        Always returns None when the result is not map-grounded so that
+        `confirmed_sign` is only ever set from a deterministic source.
 
         Returns:
-            tuple: (sign_name, (x, y)) if a match is found, else None.
-                   (Distance, when available from YOLO+depth, is logged
-                    but not returned to keep the call-site signature.)
+            tuple: (sign_name, (x, y)) or None.
         """
-        # ── Tier 1: YOLO cache (depth-aware, no file dependency) ──────────
-        try:
-            yolo_dets = getattr(self.detect, 'last_yolo_detections', [])
-            yolo_stamp = getattr(self.detect, '_last_yolo_stamp', 0.0)
-            if yolo_dets and (time() - yolo_stamp) < 0.5:
-                with_dist    = [d for d in yolo_dets if d['distance_m'] > 0]
-                without_dist = [d for d in yolo_dets if d['distance_m'] <= 0]
-                ordered = sorted(with_dist, key=lambda dd: dd['distance_m']) \
-                          + without_dist
-                # Filter out non-sign classes that the brain doesn't act on
-                # (`pedestrian`, `car`, `roadblock` are handled by
-                # control_for_pedestrian / control_for_car).
-                non_sign = {'pedestrian', 'car', 'roadblock', 'stopline'}
-                signs_only = [d for d in ordered if d['cls_name'] not in non_sign]
-                if signs_only:
-                    best = signs_only[0]
-                    pos  = (float(self.car.x_est), float(self.car.y_est))
-                    dist_str = (f'{best["distance_m"]:.2f}m'
-                                if best['distance_m'] > 0 else 'n/a')
-                    print(f'[sign_detection_position] YOLO: {best["sign"]} '
-                          f'@ {dist_str} ({best["conf"]:.0%})')
-                    return (best['sign'], pos)
-        except Exception as e:
-            print(f'[sign_detection_position] YOLO lookup failed: {e}')
-
-        # ── Tier 2: legacy file-based lookup (unchanged) ──────────────────
-        tolerance = 0.001
-        print(f'stopline_counter: {self.stopline_counter}')
+        # ── Map lookup ─────────────────────────────────────────────────────
+        txt_sign = None
+        txt_pos  = None
         curr_stopline = self.next_event.point
-        print(f'cur_stopppline',curr_stopline)
         sign_file_path = os.path.join(base_dir, 'data', 'sign_with_position.txt')
-        def is_close(coord1, coord2):
-            return math.isclose(coord1[0], coord2[0], abs_tol=tolerance) and \
-                   math.isclose(coord1[1], coord2[1], abs_tol=tolerance)
+        tolerance = 0.001
 
-        # Load signs from file
-        signs = []
-        with open(sign_file_path, 'r') as f:
-            for line in f:
-                parts = line.strip().split()
-                if len(parts) >= 3:
-                    name = parts[0]
-                    x, y = map(float, parts[1:3])
-                    signs.append((name, (x, y)))
+        def is_close(c1, c2):
+            return (math.isclose(c1[0], c2[0], abs_tol=tolerance) and
+                    math.isclose(c1[1], c2[1], abs_tol=tolerance))
 
-        # Find match
-        for sign_name, sign_pos in signs:
-            if is_close(curr_stopline, sign_pos):
-                return (sign_name, sign_pos)
+        try:
+            with open(sign_file_path, 'r') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) >= 3:
+                        name = parts[0]
+                        pos  = (float(parts[1]), float(parts[2]))
+                        if is_close(curr_stopline, pos):
+                            txt_sign = name
+                            txt_pos  = pos
+                            break
+        except Exception as e:
+            print(f'[sign_detection_position] map lookup failed: {e}')
 
-        return None  # No match found
+        # ── Voted YOLO result (already buffered + confidence-gated) ───────
+        yolo_sign = self.curr_sign if self.curr_sign != nac.NO_SIGN else None
+
+        # ── Cross-validate ────────────────────────────────────────────────
+        car_pos = (float(self.car.x_est), float(self.car.y_est))
+
+        if txt_sign is not None and yolo_sign is not None:
+            if txt_sign == yolo_sign:
+                print(f'[sign_detection_position] CONFIRMED {txt_sign} '
+                      f'(map+YOLO agree, conf={self.curr_sign_confidence:.0%})')
+            else:
+                print(f'[sign_detection_position] MISMATCH '
+                      f'map={txt_sign} YOLO={yolo_sign} → trusting map')
+            return (txt_sign, txt_pos if txt_pos else car_pos)
+
+        if txt_sign is not None:
+            print(f'[sign_detection_position] map only: {txt_sign} '
+                  f'(YOLO had no detection)')
+            return (txt_sign, txt_pos)
+
+        if yolo_sign is not None:
+            # Stopline not in the map → do NOT trust YOLO alone for decisions
+            print(f'[sign_detection_position] YOLO-only {yolo_sign} '
+                  f'rejected (stopline not in map, defaulting to event logic)')
+            return None
+
+        print(f'[sign_detection_position] no sign (stopline={curr_stopline})')
+        return None
 
 
 
@@ -1210,7 +1248,6 @@ class Brain:
             self.env.publish_obstacle(nac.TRAFFIC_LIGHT, self.car.x_est, self.car.y_est)
             self.curr_state.just_switched = False
         if tl_state == nac.GREEN or SEMAPHORE_IS_ALWAYS_GREEN or (time() - self.curr_state.start_time) > 10:
-            self.switch_to_state(nac.TRACKING_LOCAL_PATH)
             self.switch_to_state(nac.TRACKING_LOCAL_PATH)
 
     def waiting_at_stopline(self):
@@ -1394,7 +1431,7 @@ class Brain:
     def tailing_car(self):
         # TODO Jona: check if this works in the arena ???
         if (ARENA and (time() - self.curr_state.start_time) > 10) and (self.next_event.name == nac.TUNNEL_EVENT or self.next_event.name == nac.NO_LANE_EVENT):
-            nac.CAN_OVERTAKE = True 
+            self.conditions[nac.CAN_OVERTAKE] = True
         dist1 = hf.get_min_distance_in_range(self.car.lidar_angles,self.car.lidar_ranges, 165, 180)
         dist2= hf.get_min_distance_in_range(self.car.lidar_angles,self.car.lidar_ranges, -180, -165)
         dist_tof = self.car.filtered_center_tof_distance
@@ -1823,7 +1860,9 @@ class Brain:
                 self.switch_to_state(nac.LANE_FOLLOWING)
                 nac.DONT_STOP_AT_NO_LANE_EVENT = True
                 self.go_to_next_event()
-        else: assert False, 'This should never happen!'
+        else:
+            print(f'WARNING: no_lane() called with unexpected checkpoint {self.checkpoints[self.checkpoint_idx]}, falling back to LANE_FOLLOWING')
+            self.switch_to_state(nac.LANE_FOLLOWING)
 
 
     # =============== ROUTINES =============== #
@@ -1900,16 +1939,11 @@ class Brain:
             self.car.drive_speed(self.desired_speed*SLOW_DOWN_CONST)
 
     def accelerate(self):
-        if np.abs(self.car.filtered_encoder_velocity < ACCELERATION_CONST*self.desired_speed):
+        if np.abs(self.car.filtered_encoder_velocity - ACCELERATION_CONST*self.desired_speed) > 0.1:
             self.car.drive_speed(ACCELERATION_CONST*self.desired_speed)
 
     def control_for_signs(self):
         prev_sign = self.curr_sign
-        # Re-enabled after the perception refactor: the legacy SIFT+SVM
-        # classifier was unreliable on the BFMC track lighting and was
-        # therefore disabled with an early `return`.  We now use the
-        # YOLOv8 model trained on the BFMC sign set plus
-        # OAK-D stereo depth — see Detection.detect_sign.
         if not self.conditions[nac.REROUTING]:
             sign, confidence = self.detect.detect_sign(
                 self.car.frame,
@@ -1917,13 +1951,32 @@ class Brain:
                 show_kp=SHOW_IMGS,
                 depth_frame=self.car.depth_frame,
             )
-            if sign != nac.NO_SIGN and sign != self.curr_sign:
-                self.curr_sign = sign
-                self.curr_sign_confidence = confidence
 
-            if self.curr_sign == 'stop' or self.curr_sign == 'priority':
-                if self.curr_sign_confidence < 0.80:
-                    self.curr_sign = nac.NO_SIGN
+            # Per-frame confidence gate (applied to every class)
+            if confidence < SIGN_CONF_THRESHOLD:
+                sign = nac.NO_SIGN
+
+            # Feed vote buffer
+            self._sign_vote_buffer.append(sign)
+
+            # Only act once the buffer is full
+            if len(self._sign_vote_buffer) == SIGN_VOTE_WINDOW:
+                from collections import Counter
+                most_common, count = Counter(self._sign_vote_buffer).most_common(1)[0]
+
+                if most_common != nac.NO_SIGN and count >= SIGN_VOTE_THRESHOLD:
+                    # Enough frames agree on this sign → accept it
+                    self._sign_no_detect_cnt = 0
+                    if most_common != self.curr_sign:
+                        self.curr_sign = most_common
+                        self.curr_sign_confidence = confidence
+                else:
+                    # No majority → count toward decay
+                    self._sign_no_detect_cnt += 1
+                    if self._sign_no_detect_cnt >= SIGN_DECAY_FRAMES:
+                        self.curr_sign = nac.NO_SIGN
+                        self.curr_sign_confidence = 0.0
+                        self._sign_no_detect_cnt = 0
 
             # publish sign (this is what the dashboard listens to)
             if self.curr_sign != prev_sign and self.curr_sign != nac.NO_SIGN:
@@ -1986,7 +2039,7 @@ class Brain:
         frame_resized = self.car.frame.copy()
 
         # Convert the frame to HSV color space
-        hsv = cv.cvtColor(frame_resized, cv.COLOR_RGB2HSV)
+        hsv = cv.cvtColor(frame_resized, cv.COLOR_BGR2HSV)
 
         # Define the range of pink in HSV (Hue range for pink: 140-170)
         #upper_pink = np.array([, 50, 70])  # Upper bound for pink
@@ -2067,12 +2120,13 @@ class Brain:
         curr_dist = self.car.encoder_distance                        
         #print(f'VAR1: {self.routines[nac.UPDATE_STATE].var1}')
         #print(f'DISTANCE CHANGE: {prev_dist-curr_dist}')
-        if np.abs(prev_dist-curr_dist) > DISTANCES_BETWEEN_FRAMES:
+        delta = curr_dist - prev_dist
+        if np.abs(delta) > DISTANCES_BETWEEN_FRAMES:
             self.past_frames.append(self.car.frame)
             prev_dist = curr_dist
         self.routines[nac.UPDATE_STATE].var1 = prev_dist
 
-        self.car_dist_on_path += curr_dist - prev_dist
+        self.car_dist_on_path += delta
         # print('PATH: ', self.path_planner.path)
         #print('DIST ON PATH: ', self.car_dist_on_path)
 
@@ -2102,7 +2156,8 @@ class Brain:
     # ===================== STATE MACHINE MANAGEMENT ===================== #
     def run(self):
         print('==========================================================================')
-        print(f'CHECKPOINT:     {self.checkpoints[self.checkpoint_idx]} -> {self.checkpoints[min(len(self.checkpoints), self.checkpoint_idx+1)]}')
+        next_cp = self.checkpoints[self.checkpoint_idx + 1] if self.checkpoint_idx + 1 < len(self.checkpoints) else 'END'
+        print(f'CHECKPOINT:     {self.checkpoints[self.checkpoint_idx]} -> {next_cp}')
         print(f'STATE:          {self.curr_state}')
         # print(f'2nd_PREV_EVENT: {self.second_prev_event}')
         print(f'NEXT_EVENT:     {self.next_event}')

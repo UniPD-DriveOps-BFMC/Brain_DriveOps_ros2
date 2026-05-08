@@ -122,8 +122,8 @@ YOLO_TO_LEGACY_SIGN = {
     'crosswalk':        'cross_walk',
 }
 
-YOLO_CONF_THRESHOLD = 0.50
-YOLO_IOU_THRESHOLD  = 0.40
+YOLO_CONF_THRESHOLD = 0.60
+YOLO_IOU_THRESHOLD  = 0.50
 YOLO_IMGSZ          = 640
 
 # Stereo-depth windowing (matches `traffic_sign_node.py`).
@@ -164,49 +164,55 @@ class Detection:
         self.lane_cnt = 0
         self.avg_lane_detection_time = 0
 
+        # ── Helper: load secondary models via onnxruntime (CUDA) with cv.dnn fallback ──
+        def _load(path, label):
+            if _ORT_AVAILABLE and os.path.isfile(path):
+                try:
+                    sess = ort.InferenceSession(path, providers=self._ort_providers)
+                    return sess, sess.get_inputs()[0].name
+                except Exception as e:
+                    print(f'[detection] {label} ort failed ({e}), using cv.dnn')
+            return cv.dnn.readNetFromONNX(path), None
+
         # speed challenge
-        self.lane_keeper_ahead = cv.dnn.readNetFromONNX(LANE_KEEPER_AHEAD_PATH)
+        self.lane_keeper_ahead,         self._la_in   = _load(LANE_KEEPER_AHEAD_PATH,         'lane_keeper_ahead')
         self.lane_ahead_cnt = 0
         self.avg_lane_ahead_detection_time = 0
 
-        # intersection right
-        self.intersection_navigator_right = cv.dnn.readNetFromONNX(INTERSECTION_NAVIGATOR_RIGHT)
+        # intersection navigators
+        self.intersection_navigator_right,   self._ir_in = _load(INTERSECTION_NAVIGATOR_RIGHT,   'inters_right')
         self.intersection_right_cnt = 0
         self.avg_intersection_right_detection_time = 0
 
-        # intersection left
-        self.intersection_navigator_left = cv.dnn.readNetFromONNX(INTERSECTION_NAVIGATOR_LEFT)
+        self.intersection_navigator_left,    self._il_in = _load(INTERSECTION_NAVIGATOR_LEFT,    'inters_left')
         self.intersection_left_cnt = 0
         self.avg_intersection_left_detection_time = 0
 
-        # intersection forward
-        self.intersection_navigator_forward = cv.dnn.readNetFromONNX(INTERSECTION_NAVIGATOR_FORWARD)
+        self.intersection_navigator_forward, self._if_in = _load(INTERSECTION_NAVIGATOR_FORWARD, 'inters_fwd')
         self.intersection_forward_cnt = 0
         self.avg_intersection_forward_detection_time = 0
 
-        # roundabout in
-        self.roundabout_navigator_in = cv.dnn.readNetFromONNX(ROUNDABOUT_NAVIGATOR_IN)
+        # roundabout navigators
+        self.roundabout_navigator_in,    self._ri_in = _load(ROUNDABOUT_NAVIGATOR_IN,    'round_in')
         self.roundabout_in_cnt = 0
         self.avg_roundabout_in_detection_time = 0
 
-        # roundabout about
-        self.roundabout_navigator_about = cv.dnn.readNetFromONNX(ROUNDABOUT_NAVIGATOR_ABOUT)
+        self.roundabout_navigator_about, self._ra_in = _load(ROUNDABOUT_NAVIGATOR_ABOUT, 'round_about')
         self.roundabout_about_cnt = 0
         self.avg_roundabout_about_detection_time = 0
 
-        # roundabout out
-        self.roundabout_navigator_out = cv.dnn.readNetFromONNX(ROUNDABOUT_NAVIGATOR_OUT)
+        self.roundabout_navigator_out,   self._ro_in = _load(ROUNDABOUT_NAVIGATOR_OUT,   'round_out')
         self.roundabout_out_cnt = 0
         self.avg_roundabout_out_detection_time = 0
 
         # stop line detection
-        self.stopline_estimator = cv.dnn.readNetFromONNX(STOPLINE_ESTIMATOR_PATH)
+        self.stopline_estimator,     self._sl_in  = _load(STOPLINE_ESTIMATOR_PATH,     'stopline')
         self.est_dist_to_stopline = 1.0
         self.avg_stopline_detection_time = 0
         self.stopline_cnt = 0
 
         # stop line detection advanced
-        self.stopline_estimator_adv = cv.dnn.readNetFromONNX(STOPLINE_ESTIMATOR_ADV_PATH)
+        self.stopline_estimator_adv, self._sla_in = _load(STOPLINE_ESTIMATOR_ADV_PATH, 'stopline_adv')
         self.est_dist_to_stopline_adv = 1.0
         self.avg_stopline_detection_adv_time = 0
         self.stopline_adv_cnt = 0
@@ -398,30 +404,35 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        images = frame
-
         if faster:
-            blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
-                                        swapRB=True, crop=False)
+            blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
         else:
             frame_flip = cv.flip(frame, 1)
-            # stack the 2 images
-            images = np.stack((frame, frame_flip), axis=0)
-            blob = cv.dnn.blobFromImages(images, 1.0, IMG_SIZE, 0,
-                                         swapRB=True, crop=False)
-        self.lane_keeper_ahead.setInput(blob)
-        out = self.lane_keeper_ahead.forward()  # NOTE: MINUS SIGN IF OLD NET
-        print("OUT 0: ", out[0])
-        # print("OUT 1: ", out[1])
-        output = out[0]
-        output_flipped = out[1] if not faster else None
+            blob = np.stack((frame, frame_flip), axis=0).astype(np.float32)[:, np.newaxis, ...]
 
-        # <++>
+        if self._la_in is not None:
+            if faster:
+                out = self.lane_keeper_ahead.run(None, {self._la_in: blob})[0]
+                output = out[0]
+                output_flipped = None
+            else:
+                out_orig = self.lane_keeper_ahead.run(None, {self._la_in: blob[0:1]})[0]
+                out_flip = self.lane_keeper_ahead.run(None, {self._la_in: blob[1:2]})[0]
+                output = out_orig[0]
+                output_flipped = out_flip[0]
+        else:
+            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False) if faster \
+                      else cv.dnn.blobFromImages(np.stack((frame, cv.flip(frame, 1)), axis=0), 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            self.lane_keeper_ahead.setInput(cv_blob)
+            out = self.lane_keeper_ahead.forward()
+            output = out[0]
+            output_flipped = out[1] if not faster else None
+
+        print("OUT 0: ", output)
         e3 = output[0]
 
-        if not faster:
+        if not faster and output_flipped is not None:
             e3_flipped = output_flipped[0]
-
             e3 = (e3 - e3_flipped) / 2.0  # - 0.17684
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -455,13 +466,13 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        images = frame
-
-        blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
-                                    swapRB=True, crop=False)
-        self.intersection_navigator_right.setInput(blob)
-        out = self.intersection_navigator_right.forward()
-        output = out[0]
+        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
+        if self._ir_in is not None:
+            output = self.intersection_navigator_right.run(None, {self._ir_in: blob})[0][0]
+        else:
+            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            self.intersection_navigator_right.setInput(cv_blob)
+            output = self.intersection_navigator_right.forward()[0]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -496,13 +507,13 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        images = frame
-
-        blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
-                                    swapRB=True, crop=False)
-        self.intersection_navigator_left.setInput(blob)
-        out = self.intersection_navigator_left.forward()
-        output = out[0]
+        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
+        if self._il_in is not None:
+            output = self.intersection_navigator_left.run(None, {self._il_in: blob})[0][0]
+        else:
+            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            self.intersection_navigator_left.setInput(cv_blob)
+            output = self.intersection_navigator_left.forward()[0]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -537,17 +548,17 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        images = frame
-
         frame_flip = cv.flip(frame, 1)
-        # stack the 2 images
-        images = np.stack((frame, frame_flip), axis=0)
-        blob = cv.dnn.blobFromImages(images, 1.0, IMG_SIZE, 0,
-                                     swapRB=True, crop=False)
-        self.intersection_navigator_forward.setInput(blob)
-        out = self.intersection_navigator_forward.forward()
-        output = out[0]
-        output_flipped = out[1]
+        if self._if_in is not None:
+            b0 = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
+            b1 = frame_flip.astype(np.float32)[np.newaxis, np.newaxis, ...]
+            output         = self.intersection_navigator_forward.run(None, {self._if_in: b0})[0][0]
+            output_flipped = self.intersection_navigator_forward.run(None, {self._if_in: b1})[0][0]
+        else:
+            blob = cv.dnn.blobFromImages(np.stack((frame, frame_flip), axis=0), 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            self.intersection_navigator_forward.setInput(blob)
+            out = self.intersection_navigator_forward.forward()
+            output, output_flipped = out[0], out[1]
 
         e3 = output[0]
         e3_flipped = output_flipped[0]
@@ -585,13 +596,13 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        images = frame
-
-        blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
-                                    swapRB=True, crop=False)
-        self.roundabout_navigator_in.setInput(blob)
-        out = self.roundabout_navigator_in.forward()
-        output = out[0]
+        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
+        if self._ri_in is not None:
+            output = self.roundabout_navigator_in.run(None, {self._ri_in: blob})[0][0]
+        else:
+            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            self.roundabout_navigator_in.setInput(cv_blob)
+            output = self.roundabout_navigator_in.forward()[0]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -626,13 +637,13 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        images = frame
-
-        blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
-                                    swapRB=True, crop=False)
-        self.roundabout_navigator_about.setInput(blob)
-        out = self.roundabout_navigator_about.forward()
-        output = out[0]
+        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
+        if self._ra_in is not None:
+            output = self.roundabout_navigator_about.run(None, {self._ra_in: blob})[0][0]
+        else:
+            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            self.roundabout_navigator_about.setInput(cv_blob)
+            output = self.roundabout_navigator_about.forward()[0]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -667,13 +678,13 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        images = frame
-
-        blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
-                                    swapRB=True, crop=False)
-        self.roundabout_navigator_out.setInput(blob)
-        out = self.roundabout_navigator_out.forward()
-        output = out[0]
+        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
+        if self._ro_in is not None:
+            output = self.roundabout_navigator_out.run(None, {self._ro_in: blob})[0][0]
+        else:
+            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+            self.roundabout_navigator_out.setInput(cv_blob)
+            output = self.roundabout_navigator_out.forward()[0]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -708,10 +719,13 @@ class Detection:
             frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
             frame = cv.resize(frame, IMG_SIZE)
 
-            blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True,
-                                        crop=False)
-            self.stopline_estimator_adv.setInput(blob)
-            output = self.stopline_estimator_adv.forward()
+            blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
+            if self._sla_in is not None:
+                output = self.stopline_estimator_adv.run(None, {self._sla_in: blob})[0]
+            else:
+                cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+                self.stopline_estimator_adv.setInput(cv_blob)
+                output = self.stopline_estimator_adv.forward()
             stopline_x = dist = output[0][0] + PREDICTION_OFFSET
             stopline_y = output[0][1]
             stopline_angle = output[0][2]
