@@ -108,7 +108,7 @@ SIGN_WORLD_POSITIONS = {
 }
 
 # Camera horizontal FOV in radians — calibrate this for your lens
-CAMERA_HFOV_RAD = np.deg2rad(62.2)
+CAMERA_HFOV_RAD = np.deg2rad(63.209)
 # IMG_WIDTH = 1280 # not sure about 1280
 # Correction tuning
 SIGN_MAX_DIST_M       = 2.5   # ignore detections farther than this
