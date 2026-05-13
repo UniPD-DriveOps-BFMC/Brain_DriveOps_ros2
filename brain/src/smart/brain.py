@@ -1680,6 +1680,12 @@ class Brain:
         central_distance_right = hf.get_min_distance_in_filtered_range(self.car.lidar_angles,self.car.lidar_ranges, 150, 180)
         central_distance_left = hf.get_min_distance_in_filtered_range(self.car.lidar_angles,self.car.lidar_ranges, -180, -150)
         central_distance = min(central_distance_left,central_distance_right)
+
+        # Run pedestrian detection immediately so flags are fresh before any decision below.
+        # Without this, control_for_pedestrian() only runs via run_routines() AFTER
+        # crosswalk_navigation() returns, meaning flag_seen_pedestrian is always stale.
+        self.control_for_pedestrian()
+
         if nac.TESTING:
             self.activate_routines([nac.CONTROL_FOR_PEDESTRIAN])
             if not (self.flag_seen_pedestrian or central_distance < PEDESTRIAN_CONTROL_DISTANCE):
@@ -2037,6 +2043,7 @@ class Brain:
 
         # Resize the frame to match the preview resolution (faster display)
         frame_resized = self.car.frame.copy()
+        frame_resized = cv.resize(frame, (320, 240))
 
         # Convert the frame to HSV color space
         hsv = cv.cvtColor(frame_resized, cv.COLOR_BGR2HSV)
@@ -2066,7 +2073,7 @@ class Brain:
 
                 # Draw a red dot at the centroid (Red is BGR: (0, 0, 255))
                 cv.circle(frame_resized, (cx, cy), 10, (0, 0, 255), -1)  # Red in BGR
-                
+
                 # Define the rectangle centered in the image
                 frame_height, frame_width = frame_resized.shape[:2]
                 rect_width = 200  # Width of the rectangle
@@ -2085,11 +2092,16 @@ class Brain:
                 if rect_x1 <= cx <= rect_x2 and rect_y1 <= cy <= rect_y2:
                     self.flag_pedestrian_in_the_way = True
                 else:
-                    self.flag_pedestrian_in_the_way =  False
+                    self.flag_pedestrian_in_the_way = False
 
                 self.flag_seen_pedestrian = True
             else:
-                self.flag_seen_pedestrian =  False
+                self.flag_seen_pedestrian = False
+                self.flag_pedestrian_in_the_way = False
+        else:
+            # No pink contours at all — pedestrian is gone
+            self.flag_seen_pedestrian = False
+            self.flag_pedestrian_in_the_way = False
 
         print(f"Pedestrian :{self.flag_pedestrian_in_the_way}")
 
