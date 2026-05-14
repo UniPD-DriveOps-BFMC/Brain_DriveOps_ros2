@@ -1,0 +1,19 @@
+running egg_info
+writing ../../build/camera_preprocessing/camera_preprocessing.egg-info/PKG-INFO
+writing dependency_links to ../../build/camera_preprocessing/camera_preprocessing.egg-info/dependency_links.txt
+writing entry points to ../../build/camera_preprocessing/camera_preprocessing.egg-info/entry_points.txt
+writing requirements to ../../build/camera_preprocessing/camera_preprocessing.egg-info/requires.txt
+writing top-level names to ../../build/camera_preprocessing/camera_preprocessing.egg-info/top_level.txt
+reading manifest file '../../build/camera_preprocessing/camera_preprocessing.egg-info/SOURCES.txt'
+writing manifest file '../../build/camera_preprocessing/camera_preprocessing.egg-info/SOURCES.txt'
+running build
+running build_py
+running install
+running install_lib
+running install_data
+running install_egg_info
+removing '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing-0.0.0-py3.12.egg-info' (and everything under it)
+Copying ../../build/camera_preprocessing/camera_preprocessing.egg-info to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing-0.0.0-py3.12.egg-info
+running install_scripts
+Installing lane_inference_node script to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/camera_preprocessing
+writing list of installed files to '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/install.log'

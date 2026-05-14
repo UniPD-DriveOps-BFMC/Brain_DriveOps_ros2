@@ -1,0 +1,21 @@
+[1.629s] Invoking command in '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/traffic_sign build --build-base /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build install --record /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/install.log --single-version-externally-managed install_data
+[1.981s] running egg_info
+[2.011s] writing ../../build/traffic_sign/traffic_sign.egg-info/PKG-INFO
+[2.012s] writing dependency_links to ../../build/traffic_sign/traffic_sign.egg-info/dependency_links.txt
+[2.012s] writing entry points to ../../build/traffic_sign/traffic_sign.egg-info/entry_points.txt
+[2.012s] writing requirements to ../../build/traffic_sign/traffic_sign.egg-info/requires.txt
+[2.012s] writing top-level names to ../../build/traffic_sign/traffic_sign.egg-info/top_level.txt
+[2.066s] reading manifest file '../../build/traffic_sign/traffic_sign.egg-info/SOURCES.txt'
+[2.067s] writing manifest file '../../build/traffic_sign/traffic_sign.egg-info/SOURCES.txt'
+[2.067s] running build
+[2.067s] running build_py
+[2.067s] running install
+[2.073s] running install_lib
+[2.104s] running install_data
+[2.104s] running install_egg_info
+[2.133s] removing '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign-0.0.0-py3.12.egg-info' (and everything under it)
+[2.133s] Copying ../../build/traffic_sign/traffic_sign.egg-info to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign-0.0.0-py3.12.egg-info
+[2.134s] running install_scripts
+[2.303s] Installing traffic_sign_node script to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/traffic_sign
+[2.304s] writing list of installed files to '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/install.log'
+[2.365s] Invoked command in '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/traffic_sign build --build-base /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build install --record /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/install.log --single-version-externally-managed install_data

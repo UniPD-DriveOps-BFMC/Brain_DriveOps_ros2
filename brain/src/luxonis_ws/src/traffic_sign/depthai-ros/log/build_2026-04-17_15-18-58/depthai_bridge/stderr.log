@@ -1,0 +1,6 @@
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    MAKE_BUILD_TYPE
+
+[0m

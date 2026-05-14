@@ -1,0 +1,1 @@
+/home/michele-zarantonello/Brain_DriveOps_ros2/brain/src/luxonis_ws/src/traffic_sign/depthai-ros/depthai-ros/depthai_ros_driver/launch/camera_as_part_of_a_robot.launch.py

@@ -1,0 +1,125 @@
+-- The CXX compiler identification is GNU 13.3.0
+-- The C compiler identification is GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Found ament_cmake: 2.5.4 (/opt/ros/jazzy/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- ------------------------------------------
+-- Depthai Bridge is being built using AMENT.
+-- ------------------------------------------
+-- Found camera_info_manager: 5.1.7 (/opt/ros/jazzy/share/camera_info_manager/cmake)
+-- Found rosidl_generator_c: 4.6.6 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+-- Found rosidl_generator_cpp: 4.6.6 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+-- Found rmw_implementation_cmake: 7.3.2 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+-- Found rmw_fastrtps_cpp: 8.4.3 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.13")  
+-- Found FastRTPS: /opt/ros/jazzy/include (Required is at least version "2.13") 
+-- Using RMW implementation 'rmw_fastrtps_cpp' as default
+-- Setting yaml-cpp_DIR to: '/opt/ros/jazzy/share/yaml_cpp_vendor/cmake/../../../opt/yaml_cpp_vendor/share/cmake/yaml-cpp'
+-- Found cv_bridge: 4.1.0 (/opt/ros/jazzy/share/cv_bridge/cmake)
+-- Found depthai_ros_msgs: 2.12.2 (/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_ros_msgs/share/depthai_ros_msgs/cmake)
+-- Found depthai_bridge: 2.12.2 (/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_bridge/share/depthai_bridge/cmake)
+-- Found eigen3_cmake_module: 0.3.0 (/opt/ros/jazzy/share/eigen3_cmake_module/cmake)
+-- Found Eigen3: TRUE (found version "3.4.0") 
+-- Ensuring Eigen3 include directory is part of orocos-kdl CMake target
+-- Configuring done (11.7s)
+-- Generating done (0.1s)
+[33mCMake Warning:
+  Manually-specified variables were not used by the project:
+
+    MAKE_BUILD_TYPE
+
+[0m
+-- Build files have been written to: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/build/depthai_examples
+[  5%] [32mBuilding CXX object CMakeFiles/crop_control_service.dir/src/crop_control_service.cpp.o[0m
+[ 10%] [32m[1mLinking CXX executable crop_control_service[0m
+[ 10%] Built target crop_control_service
+[ 15%] [32mBuilding CXX object CMakeFiles/yolov4_node.dir/src/yolov4_publisher.cpp.o[0m
+[ 20%] [32m[1mLinking CXX executable yolov4_node[0m
+[ 20%] Built target yolov4_node
+[ 25%] [32mBuilding CXX object CMakeFiles/tracker_yolov4_node.dir/src/tracker_yolov4_publisher.cpp.o[0m
+[ 30%] [32m[1mLinking CXX executable tracker_yolov4_node[0m
+[ 30%] Built target tracker_yolov4_node
+[ 35%] [32mBuilding CXX object CMakeFiles/rgb_stereo_node.dir/src/rgb_stereo_node.cpp.o[0m
+[ 40%] [32mBuilding CXX object CMakeFiles/feature_tracker.dir/src/feature_tracker_publisher.cpp.o[0m
+[ 50%] [32mBuilding CXX object CMakeFiles/stereo_inertial_node.dir/src/stereo_inertial_publisher.cpp.o[0m
+[ 50%] [32mBuilding CXX object CMakeFiles/yolov4_spatial_node.dir/src/yolov4_spatial_publisher.cpp.o[0m
+[ 55%] [32mBuilding CXX object CMakeFiles/tracker_yolov4_spatial_node.dir/src/tracker_yolov4_spatial_publisher.cpp.o[0m
+[ 60%] [32mBuilding CXX object CMakeFiles/stereo_node.dir/src/stereo_publisher.cpp.o[0m
+[ 65%] [32m[1mLinking CXX executable feature_tracker[0m
+[ 70%] [32m[1mLinking CXX executable rgb_stereo_node[0m
+[ 75%] [32m[1mLinking CXX executable tracker_yolov4_spatial_node[0m
+[ 80%] [32m[1mLinking CXX executable stereo_node[0m
+[ 80%] Built target feature_tracker
+[ 85%] [32mBuilding CXX object CMakeFiles/mobilenet_node.dir/src/mobilenet_publisher.cpp.o[0m
+[ 85%] Built target rgb_stereo_node
+[ 90%] [32m[1mLinking CXX executable yolov4_spatial_node[0m
+[ 90%] Built target tracker_yolov4_spatial_node
+[ 90%] Built target stereo_node
+[ 90%] Built target yolov4_spatial_node
+[ 95%] [32m[1mLinking CXX executable stereo_inertial_node[0m
+[ 95%] Built target stereo_inertial_node
+[100%] [32m[1mLinking CXX executable mobilenet_node[0m
+[100%] Built target mobilenet_node
+-- Install configuration: ""
+-- Execute custom install script
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/params/camera/color.yaml
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/params/camera/left.yaml
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/params/camera/right.yaml
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/pointCloud.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/rgb_camera.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/stereoInertial.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/stereoInertialDepthAlign.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/stereoInertialDepthAlignROS2.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/stereoInertialROS1.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/stereoPointCloud.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/stereoPointCloud_v1.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/stereo_config.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/rviz/stereo_nodelet.rviz
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/resources/deeplab_v3_plus_mnv2_decoder_256_openvino_2021.4.blob
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/resources/mobilenet-ssd_openvino_2021.2_6shave.blob
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/resources/yolov4_tiny_coco_416x416_openvino_2021.4_6shave_bgr.blob
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/crop_control_service
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/mobilenet_node
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/rgb_stereo_node
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/stereo_inertial_node
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/stereo_node
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/yolov4_spatial_node
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/yolov4_node
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/feature_tracker
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/tracker_yolov4_node
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/lib/depthai_examples/tracker_yolov4_spatial_node
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/ament_index/resource_index/package_run_dependencies/depthai_examples
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/ament_index/resource_index/parent_prefix_path/depthai_examples
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/environment/ament_prefix_path.sh
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/environment/ament_prefix_path.dsv
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/environment/path.sh
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/environment/path.dsv
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/local_setup.bash
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/local_setup.sh
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/local_setup.zsh
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/local_setup.dsv
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/package.dsv
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/ament_index/resource_index/packages/depthai_examples
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/cmake/depthai_examplesConfig.cmake
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/cmake/depthai_examplesConfig-version.cmake
+-- Symlinking: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/package.xml
+-- Installing: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/launch
+-- Installing: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/launch/tracker_yolov4_node.launch.py
+-- Installing: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/launch/tracker_yolov4_spatial_node.launch.py
+-- Installing: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/launch/rgb_stereo_node.launch.py
+-- Installing: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/launch/mobile_publisher.launch.py
+-- Installing: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/launch/stereo_inertial_node.launch.py
+-- Installing: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/launch/yolov4_publisher.launch.py
+-- Installing: /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign/depthai-ros/install/depthai_examples/share/depthai_examples/launch/stereo.launch.py

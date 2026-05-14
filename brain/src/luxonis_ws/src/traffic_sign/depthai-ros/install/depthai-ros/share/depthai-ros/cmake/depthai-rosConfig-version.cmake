@@ -1,0 +1,1 @@
+/home/michele-zarantonello/Brain_DriveOps_ros2/brain/src/luxonis_ws/src/traffic_sign/depthai-ros/build/depthai-ros/ament_cmake_core/depthai-rosConfig-version.cmake

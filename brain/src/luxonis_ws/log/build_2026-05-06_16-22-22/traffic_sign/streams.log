@@ -1,0 +1,40 @@
+[2.829s] Invoking command in '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(BFMC) /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/traffic_sign build --build-base /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build install --record /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/install.log --single-version-externally-managed install_data
+[3.750s] running egg_info
+[3.811s] writing ../../build/traffic_sign/traffic_sign.egg-info/PKG-INFO
+[3.811s] writing dependency_links to ../../build/traffic_sign/traffic_sign.egg-info/dependency_links.txt
+[3.814s] writing entry points to ../../build/traffic_sign/traffic_sign.egg-info/entry_points.txt
+[3.814s] writing requirements to ../../build/traffic_sign/traffic_sign.egg-info/requires.txt
+[3.814s] writing top-level names to ../../build/traffic_sign/traffic_sign.egg-info/top_level.txt
+[3.943s] reading manifest file '../../build/traffic_sign/traffic_sign.egg-info/SOURCES.txt'
+[3.944s] writing manifest file '../../build/traffic_sign/traffic_sign.egg-info/SOURCES.txt'
+[3.945s] running build
+[3.945s] running build_py
+[3.945s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build
+[3.945s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib
+[3.946s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign
+[3.946s] copying traffic_sign/__init__.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign
+[3.946s] copying traffic_sign/traffic_sign_node.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign
+[3.946s] running install
+[3.959s] running install_lib
+[4.015s] copying /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign/__init__.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+[4.015s] copying /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign/traffic_sign_node.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+[4.016s] byte-compiling /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign/traffic_sign_node.py to traffic_sign_node.cpython-312.pyc
+[4.031s] running install_data
+[4.031s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/ament_index
+[4.031s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/ament_index/resource_index
+[4.032s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/ament_index/resource_index/packages
+[4.032s] copying resource/traffic_sign -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/ament_index/resource_index/packages
+[4.032s] copying package.xml -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/traffic_sign
+[4.033s] copying launch/traffic_sign.launch.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/traffic_sign/launch
+[4.033s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/traffic_sign/config
+[4.033s] copying config/params.yaml -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/traffic_sign/config
+[4.033s] copying traffic_sign/best.onnx -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+[4.053s] copying traffic_sign/okokok.onnx -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+[4.064s] copying traffic_sign/best2.onnx -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+[4.082s] running install_egg_info
+[4.154s] removing '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign-0.0.0-py3.12.egg-info' (and everything under it)
+[4.155s] Copying ../../build/traffic_sign/traffic_sign.egg-info to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign-0.0.0-py3.12.egg-info
+[4.157s] running install_scripts
+[4.570s] Installing traffic_sign_node script to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/traffic_sign
+[4.572s] writing list of installed files to '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/install.log'
+[4.634s] Invoked command in '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/traffic_sign' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(BFMC) /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/traffic_sign build --build-base /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build install --record /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/install.log --single-version-externally-managed install_data

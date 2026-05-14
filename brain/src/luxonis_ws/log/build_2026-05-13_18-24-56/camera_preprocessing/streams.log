@@ -1,0 +1,21 @@
+[2.286s] Invoking command in '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/camera_preprocessing': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(BFMC) /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/camera_preprocessing build --build-base /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build install --record /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/install.log --single-version-externally-managed install_data
+[2.770s] running egg_info
+[2.803s] writing ../../build/camera_preprocessing/camera_preprocessing.egg-info/PKG-INFO
+[2.803s] writing dependency_links to ../../build/camera_preprocessing/camera_preprocessing.egg-info/dependency_links.txt
+[2.804s] writing entry points to ../../build/camera_preprocessing/camera_preprocessing.egg-info/entry_points.txt
+[2.804s] writing requirements to ../../build/camera_preprocessing/camera_preprocessing.egg-info/requires.txt
+[2.804s] writing top-level names to ../../build/camera_preprocessing/camera_preprocessing.egg-info/top_level.txt
+[2.884s] reading manifest file '../../build/camera_preprocessing/camera_preprocessing.egg-info/SOURCES.txt'
+[2.885s] writing manifest file '../../build/camera_preprocessing/camera_preprocessing.egg-info/SOURCES.txt'
+[2.886s] running build
+[2.886s] running build_py
+[2.886s] running install
+[2.896s] running install_lib
+[2.937s] running install_data
+[2.937s] running install_egg_info
+[2.979s] removing '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing-0.0.0-py3.12.egg-info' (and everything under it)
+[2.979s] Copying ../../build/camera_preprocessing/camera_preprocessing.egg-info to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing-0.0.0-py3.12.egg-info
+[2.980s] running install_scripts
+[3.211s] Installing lane_inference_node script to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/camera_preprocessing
+[3.211s] writing list of installed files to '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/install.log'
+[3.281s] Invoked command in '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/camera_preprocessing' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(BFMC) /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/camera_preprocessing build --build-base /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build install --record /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/install.log --single-version-externally-managed install_data

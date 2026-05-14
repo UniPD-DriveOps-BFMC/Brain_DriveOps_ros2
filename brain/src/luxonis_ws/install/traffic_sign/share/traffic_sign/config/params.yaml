@@ -1,0 +1,51 @@
+traffic_sign_node:
+  ros__parameters:
+    model_path: ''
+    detection_topic:  /traffic_sign/detection
+    image_topic:      /traffic_sign/image
+    conf_threshold:   0.50
+    iou_threshold:    0.55
+    imgsz:            640
+    depth_min_mm:     100   # ignore anything closer than 10 cm
+    depth_max_mm:     2500  # 2.5 m max — covers whole track, ignores far background
+    use_mock_camera:  false
+    use_sim:          false
+    sim_image_topic:  /oak/rgb/image_raw
+    debug_view:       true
+
+    # ── Trigger distances (metres) ──────────────────────────────────────────
+    # At 25 cm/s: 1.0m → 4.0s reaction time
+    #             0.9m → 3.6s reaction time
+    #             0.6m → 2.4s reaction time  ← too tight for stop (needs 3s halt)
+
+    trigger_dist_stop:             0.90  # must stop 3s: needs early detection
+    trigger_dist_parking:          1.20  # needs time to scan for empty spot
+    trigger_dist_priority:         0.70  # just pass through, no stop needed
+    trigger_dist_roundabout:       0.80  # slow down and navigate
+    trigger_dist_one_way:          0.70  # informational, no stop needed
+    trigger_dist_no_entry:         0.80  # must avoid the road
+    trigger_dist_exit_highway:     0.70  # switch back to city rules
+    trigger_dist_entrance_highway: 0.90  # speed up, needs a little anticipation
+    trigger_dist_crosswalk:        0.70  # must visibly slow down
+    trigger_dist_pedestrian:       1.00  # stop and wait — react early
+    trigger_dist_car:              1.00  # obstacle vehicle — react early
+    trigger_dist_trafficlight:     1.20  # read state early, but not too far
+    trigger_dist_stopline:         0.55  # tight feature, needs a bit more margin
+    trigger_dist_roadblock:        0.90  # static obstacle — stop or lane change
+
+    # ── Cooldowns (seconds) ─────────────────────────────────────────────────
+    # stop cooldown > 3s mandatory stop + margin to avoid re-trigger mid-stop
+    cooldown_stop:             8.0
+    cooldown_parking:          10.0  # parking manoeuvre takes time
+    cooldown_priority:          4.0
+    cooldown_roundabout:        6.0
+    cooldown_one_way:           5.0
+    cooldown_no_entry:          5.0
+    cooldown_exit_highway:      8.0
+    cooldown_entrance_highway:  8.0
+    cooldown_crosswalk:         4.0
+    cooldown_pedestrian:        1.0   # update continuously while visible
+    cooldown_car:               1.0   # update continuously while visible
+    cooldown_trafficlight:      1.0   # state changes (red→green), update often
+    cooldown_stopline:          4.0
+    cooldown_roadblock:         3.0

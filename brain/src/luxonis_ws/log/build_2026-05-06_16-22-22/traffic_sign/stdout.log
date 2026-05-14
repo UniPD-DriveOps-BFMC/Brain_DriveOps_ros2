@@ -1,0 +1,38 @@
+running egg_info
+writing ../../build/traffic_sign/traffic_sign.egg-info/PKG-INFO
+writing dependency_links to ../../build/traffic_sign/traffic_sign.egg-info/dependency_links.txt
+writing entry points to ../../build/traffic_sign/traffic_sign.egg-info/entry_points.txt
+writing requirements to ../../build/traffic_sign/traffic_sign.egg-info/requires.txt
+writing top-level names to ../../build/traffic_sign/traffic_sign.egg-info/top_level.txt
+reading manifest file '../../build/traffic_sign/traffic_sign.egg-info/SOURCES.txt'
+writing manifest file '../../build/traffic_sign/traffic_sign.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build
+creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib
+creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign
+copying traffic_sign/__init__.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign
+copying traffic_sign/traffic_sign_node.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign
+running install
+running install_lib
+copying /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign/__init__.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+copying /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/build/lib/traffic_sign/traffic_sign_node.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+byte-compiling /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign/traffic_sign_node.py to traffic_sign_node.cpython-312.pyc
+running install_data
+creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/ament_index
+creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/ament_index/resource_index
+creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/ament_index/resource_index/packages
+copying resource/traffic_sign -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/ament_index/resource_index/packages
+copying package.xml -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/traffic_sign
+copying launch/traffic_sign.launch.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/traffic_sign/launch
+creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/traffic_sign/config
+copying config/params.yaml -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/share/traffic_sign/config
+copying traffic_sign/best.onnx -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+copying traffic_sign/okokok.onnx -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+copying traffic_sign/best2.onnx -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign
+running install_egg_info
+removing '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign-0.0.0-py3.12.egg-info' (and everything under it)
+Copying ../../build/traffic_sign/traffic_sign.egg-info to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/python3.12/site-packages/traffic_sign-0.0.0-py3.12.egg-info
+running install_scripts
+Installing traffic_sign_node script to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/traffic_sign/lib/traffic_sign
+writing list of installed files to '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/traffic_sign/install.log'

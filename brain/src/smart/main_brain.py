@@ -8,6 +8,7 @@ import rclpy, threading
 import numpy as np
 from time import sleep, time
 # from unix_socket_camera import UnixSocketCamera
+import subprocess
 
 import csv
 from datetime import datetime
@@ -122,6 +123,13 @@ def handler(signum, frame):
 
 
 if __name__ == '__main__':
+
+    # Launch traffic sign node as a background process
+    traffic_sign_proc = subprocess.Popen(
+        ['ros2', 'run', '<your_package>', 'traffic_sign_node'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
 
     hf.create_frames(nac.SHOW_IMGS)
     rclpy.init()

@@ -1,0 +1,1 @@
+/home/michele-zarantonello/Brain_DriveOps_ros2/brain/src/luxonis_ws/src/traffic_sign/depthai-ros/build/depthai_ros_msgs/ament_cmake_environment_hooks/local_setup.sh

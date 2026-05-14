@@ -1,0 +1,42 @@
+[2.904s] Invoking command in '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/camera_preprocessing': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(BFMC) /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/camera_preprocessing build --build-base /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build install --record /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/install.log --single-version-externally-managed install_data
+[3.763s] running egg_info
+[3.815s] writing ../../build/camera_preprocessing/camera_preprocessing.egg-info/PKG-INFO
+[3.815s] writing dependency_links to ../../build/camera_preprocessing/camera_preprocessing.egg-info/dependency_links.txt
+[3.816s] writing entry points to ../../build/camera_preprocessing/camera_preprocessing.egg-info/entry_points.txt
+[3.816s] writing requirements to ../../build/camera_preprocessing/camera_preprocessing.egg-info/requires.txt
+[3.816s] writing top-level names to ../../build/camera_preprocessing/camera_preprocessing.egg-info/top_level.txt
+[3.928s] reading manifest file '../../build/camera_preprocessing/camera_preprocessing.egg-info/SOURCES.txt'
+[3.930s] writing manifest file '../../build/camera_preprocessing/camera_preprocessing.egg-info/SOURCES.txt'
+[3.930s] running build
+[3.931s] running build_py
+[3.931s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build
+[3.931s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib
+[3.932s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib/camera_preprocessing
+[3.932s] copying camera_preprocessing/lane_inference_node_robust.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib/camera_preprocessing
+[3.932s] copying camera_preprocessing/luxonis_preprocessing.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib/camera_preprocessing
+[3.932s] copying camera_preprocessing/__init__.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib/camera_preprocessing
+[3.933s] copying camera_preprocessing/controller3.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib/camera_preprocessing
+[3.933s] running install
+[3.948s] running install_lib
+[4.002s] copying /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib/camera_preprocessing/lane_inference_node_robust.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing
+[4.003s] copying /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib/camera_preprocessing/luxonis_preprocessing.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing
+[4.003s] copying /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib/camera_preprocessing/__init__.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing
+[4.003s] copying /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build/lib/camera_preprocessing/controller3.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing
+[4.004s] byte-compiling /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing/lane_inference_node_robust.py to lane_inference_node_robust.cpython-312.pyc
+[4.013s] byte-compiling /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing/luxonis_preprocessing.py to luxonis_preprocessing.cpython-312.pyc
+[4.017s] running install_data
+[4.017s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/share/ament_index
+[4.018s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/share/ament_index/resource_index
+[4.018s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/share/ament_index/resource_index/packages
+[4.018s] copying resource/camera_preprocessing -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/share/ament_index/resource_index/packages
+[4.019s] copying package.xml -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/share/camera_preprocessing
+[4.019s] creating /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/share/camera_preprocessing/launch
+[4.019s] copying launch/sim.launch.py -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/share/camera_preprocessing/launch
+[4.019s] copying camera_preprocessing/lane_keeper_small.onnx -> /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing
+[4.020s] running install_egg_info
+[4.084s] removing '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing-0.0.0-py3.12.egg-info' (and everything under it)
+[4.084s] Copying ../../build/camera_preprocessing/camera_preprocessing.egg-info to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages/camera_preprocessing-0.0.0-py3.12.egg-info
+[4.086s] running install_scripts
+[4.456s] Installing lane_inference_node script to /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/camera_preprocessing
+[4.457s] writing list of installed files to '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/install.log'
+[4.529s] Invoked command in '/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/src/camera_preprocessing' returned '0': DEBUGINFOD_URLS=https://debuginfod.ubuntu.com PYTHONPATH=/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/install/camera_preprocessing/lib/python3.12/site-packages:${PYTHONPATH} VIRTUAL_ENV_PROMPT=(BFMC) /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/camera_preprocessing build --build-base /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/build install --record /home/michele-zarantonello/BFMC/BRAIN_driveops/luxonis_ws/build/camera_preprocessing/install.log --single-version-externally-managed install_data
