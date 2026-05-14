@@ -154,7 +154,7 @@ if __name__ == '__main__':
         # (run depthai_ros_driver as a separate process and let the
         # brain subscribe to its topics), set trig_cam=True and
         # trig_cam_oak=False.
-        car = AutomobileDataPi(trig_cam=True,
+        car = AutomobileDataPi(trig_cam=False,
                                trig_cam_oak=False,
                                trig_gps=True,
                                trig_bno=True,
