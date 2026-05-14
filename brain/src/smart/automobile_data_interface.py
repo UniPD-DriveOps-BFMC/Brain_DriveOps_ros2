@@ -33,26 +33,26 @@ WHEEL_LEN = 0.03  		     # [m]       wheel raduis
 WHEEL_WIDTH = 0.03  	     # [m]       wheel thickness
 WB = 0.26  			         # [m]       wheelbase
 
-# Camera parameters
-FRAME_WIDTH = 320 # 640     # [pix]     frame width
-FRAME_HEIGHT = 240  # 480    # [pix]     frame height
-# position and orientation wrt the car frame
-CAM_X = 0.0                 # [m]
-CAM_Y = 0.0                 # [m]
-CAM_Z = 0.2                 # [m]
-CAM_ROLL = 0.0              # [rad]
-CAM_PITCH = np.deg2rad(20)  # [rad]
-CAM_YAW = 0.0               # [rad]
-CAM_FOV = 1.085594795       # [rad]
-CAM_F = 1.0                 # []        focal length
-# scaling factors
-CAM_Sx = 10.0               # [pix/m]
-CAM_Sy = 10.0               # [pix/m]
-CAM_Ox = 10.0               # [pix]
-CAM_Oy = 10.0               # [pix]
-CAM_K = np.array([[CAM_F*CAM_Sx,     0.0,            CAM_Ox],
-                  [0.0,              CAM_F*CAM_Sy,   CAM_Oy],
-                  [0.0,              0.0,            1.0]])
+# Camera parameters — Luxonis OAK-D Pro (IMX378 RGB, 1280×960)
+FRAME_WIDTH  = 1280                      # [pix]  RGB stream width
+FRAME_HEIGHT = 960                       # [pix]  RGB stream height
+# extrinsics: position and orientation of camera wrt car frame
+# TODO: update CAM_Z and CAM_PITCH after running calibration/step2_extrinsics.py
+CAM_X     = 0.0                          # [m]
+CAM_Y     = 0.0                          # [m]
+CAM_Z     = 0.2                          # [m]   lens height above ground reference
+CAM_ROLL  = 0.0                          # [rad]
+CAM_PITCH = np.deg2rad(20)               # [rad] downward tilt
+CAM_YAW   = 0.0                          # [rad]
+# intrinsics: from factory calibration (step1_intrinsics.py)
+CAM_FOV = np.deg2rad(63.8326)            # [rad] HFOV
+CAM_FX  = 1027.5515                      # [px]
+CAM_FY  = 1027.5515                      # [px]
+CAM_CX  = 634.0629                       # [px]
+CAM_CY  = 454.3752                       # [px]
+CAM_K = np.array([[CAM_FX, 0.0,    CAM_CX],
+                  [0.0,    CAM_FY, CAM_CY],
+                  [0.0,    0.0,    1.0   ]])
 # Estimator parameters
 EST_INIT_X = 3.0               # [m]
 EST_INIT_Y = 3.0               # [m]

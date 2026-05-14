@@ -121,19 +121,17 @@ def project_onto_frame(frame, car, points, align_to_car=True,
 
     rotated_points = rel_pos_points @ rot_matrix.T
 
-    # project the points onto the camera frame
-    proj_points = np.array([[-p[1]/p[0], -p[2]/p[0]] for p in rotated_points])
-    # convert to pixel coordinates
-    proj_points = 240*proj_points + np.array([320//2, 240//2])  # 320x240
+    # project the points onto the camera frame using pinhole model
+    fx, fy = car.CAM_K[0, 0], car.CAM_K[1, 1]
+    cx, cy = car.CAM_K[0, 2], car.CAM_K[1, 2]
+    proj_points = np.array([[-fx * p[1]/p[0] + cx, -fy * p[2]/p[0] + cy]
+                             for p in rotated_points])
     # draw the points
     for i in range(proj_points.shape[0]):
         p = proj_points[i]
         assert p.shape == (2,), f"projection point has wrong shape: {p.shape}"
-        # print(f'p = {p}')
         p1 = (int(round(p[0])), int(round(p[1])))
-        # print(f'p = {p}')
-        # check if the point is in the frame
-        if p1[0] >= 0 and p1[0] < 320 and p1[1] >= 0 and p1[1] < 240:
+        if 0 <= p1[0] < car.FRAME_WIDTH and 0 <= p1[1] < car.FRAME_HEIGHT:
             try:
                 cv.circle(frame, p1, thickness, color, -1)
             except Exception as e:

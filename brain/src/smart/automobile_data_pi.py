@@ -27,7 +27,7 @@ import collections
 import numpy as np
 
 from std_msgs.msg    import Float32, Bool, String, UInt8
-from sensor_msgs.msg import LaserScan, Image
+from sensor_msgs.msg import LaserScan, Image, CameraInfo
 try:
     from cv_bridge import CvBridge
     _CV_BRIDGE_AVAILABLE = True
@@ -71,11 +71,11 @@ class OakDPipeline:
     weights (`models/best2.onnx`) operate on identical inputs:
 
         ┌──────────────┐           ┌────────────────┐
-        │  CAM_A RGB   │ 1280×720  │   self.rgb     │
+        │  CAM_A RGB   │ 1280×960  │   self.rgb     │
         └──────────────┘           └────────────────┘
         ┌──────────────┐                    ▲
         │ CAM_B mono   │ 640×400  ┐         │
-        ├──────────────┤          │ Stereo  │ 1280×720
+        ├──────────────┤          │ Stereo  │ 1280×960
         │ CAM_C mono   │ 640×400  ┘ Depth   │ depth aligned
         └──────────────┘            FAST_   │ to CAM_A
                                     DENSITY ▼
@@ -84,7 +84,7 @@ class OakDPipeline:
                                     └──────────────┘
     """
 
-    def __init__(self, rgb_size=(1280, 720), mono_size=(640, 400),
+    def __init__(self, rgb_size=(1280, 960), mono_size=(640, 400),
                  stereo_preset='FAST_DENSITY'):
         if not _DEPTHAI_AVAILABLE:
             raise RuntimeError(
@@ -111,7 +111,7 @@ class OakDPipeline:
         preset_map = {
             'FAST_DENSITY':  dai.node.StereoDepth.PresetMode.FAST_DENSITY,
             'HIGH_DETAIL':   dai.node.StereoDepth.PresetMode.HIGH_DETAIL,
-            'HIGH_ACCURACY': dai.node.StereoDepth.PresetMode.HIGH_ACCURACY,
+            'FAST_ACCURACY': dai.node.StereoDepth.PresetMode.FAST_ACCURACY,
         }
         stereo.setDefaultProfilePreset(
             preset_map.get(stereo_preset,
@@ -122,20 +122,30 @@ class OakDPipeline:
         stereo.setDepthAlign(dai.CameraBoardSocket.CAM_A)
         stereo.setOutputSize(*rgb_size)
 
-        mono_l.requestOutput(mono_size,
-                             dai.ImgFrame.Type.GRAY8).link(stereo.left)
-        mono_r.requestOutput(mono_size,
-                             dai.ImgFrame.Type.GRAY8).link(stereo.right)
+        _left_out = mono_l.requestOutput(mono_size, dai.ImgFrame.Type.GRAY8)
+        _left_out.link(stereo.left)
+        _right_out = mono_r.requestOutput(mono_size, dai.ImgFrame.Type.GRAY8)
+        _right_out.link(stereo.right)
 
         self._q_rgb   = cam_out.createOutputQueue(maxSize=2, blocking=False)
-        self._q_depth = stereo.depth.createOutputQueue(maxSize=2,
-                                                       blocking=False)
+        self._q_depth = stereo.depth.createOutputQueue(maxSize=2, blocking=False)
+        self._q_left  = _left_out.createOutputQueue(maxSize=2, blocking=False)
+        self._q_right = _right_out.createOutputQueue(maxSize=2, blocking=False)
 
         self._pipeline.start()
+
+        self._rgb_size  = rgb_size
+        self._mono_size = mono_size
+        try:
+            self._calib = self._device.readCalibration()
+        except Exception:
+            self._calib = None
 
         # Latest values, updated by the daemon thread
         self.rgb_frame   = None  # uint8  HxWx3 (BGR)
         self.depth_frame = None  # uint16 HxW   (mm)
+        self.left_frame  = None  # uint8  HxW   (GRAY)
+        self.right_frame = None  # uint8  HxW   (GRAY)
         self._lock       = threading.Lock()
         self._stopped    = threading.Event()
         self._thread     = threading.Thread(
@@ -147,8 +157,9 @@ class OakDPipeline:
             try:
                 in_rgb   = self._q_rgb.tryGet()
                 in_depth = self._q_depth.tryGet()
-            except Exception as e:
-                # On device disconnect, sleep a bit and retry
+                in_left  = self._q_left.tryGet()
+                in_right = self._q_right.tryGet()
+            except Exception:
                 self._stopped.wait(0.05)
                 continue
             updated = False
@@ -161,6 +172,14 @@ class OakDPipeline:
                 depth = in_depth.getFrame()
                 with self._lock:
                     self.depth_frame = depth
+                updated = True
+            if in_left is not None:
+                with self._lock:
+                    self.left_frame = in_left.getCvFrame()
+                updated = True
+            if in_right is not None:
+                with self._lock:
+                    self.right_frame = in_right.getCvFrame()
                 updated = True
             if not updated:
                 self._stopped.wait(0.005)  # 200 Hz idle poll
@@ -221,8 +240,20 @@ class AutomobileDataPi(Automobile_Data, Node):
         self.flag_localisation              = False
         self.frame                          = None   # set by _image_callback (ROS) or by _refresh_oak_frames
         self.depth_frame                    = None   # uint16 HxW (mm), populated only when trig_cam_oak=True
+        self.left_frame                     = None   # uint8 HxW (GRAY), populated when trig_cam_oak=True
+        self.right_frame                    = None   # uint8 HxW (GRAY), populated when trig_cam_oak=True
         self._oak                           = None   # OakDPipeline instance, see below
         self._bridge                        = None   # CvBridge, only used when trig_cam=True (option B)
+        self._oak_bridge                    = None   # CvBridge for publishing oak ROS topics
+        self._pub_oak_rgb                   = None
+        self._pub_oak_left                  = None
+        self._pub_oak_right                 = None
+        self._pub_oak_rgb_info              = None
+        self._pub_oak_left_info             = None
+        self._pub_oak_right_info            = None
+        self._cam_info_rgb                  = None
+        self._cam_info_left                 = None
+        self._cam_info_right                = None
 
         # ── Publishers & subscribers ──────────────────────────────────── #
         if trig_control:
@@ -278,14 +309,33 @@ class AutomobileDataPi(Automobile_Data, Node):
             # Spawns a daemon thread that polls DepthAI queues at the
             # camera rate.  `self.frame` and `self.depth_frame` are
             # refreshed in-place; the brain reads them just like before.
+            # The 50 Hz timer also re-publishes the frames as ROS topics
+            # (/oak/rgb/image_raw, /oak/left/image_raw, /oak/right/image_raw,
+            #  plus matching /camera_info) so that camera_to_socket and other
+            # nodes see frames without a separate depthai_ros_driver process.
             try:
                 self._oak = OakDPipeline()
-                # Replace the static `self.frame` attribute with a
-                # property-style refresh: a 50 Hz timer copies the
-                # latest values out of the DepthAI thread under a lock.
                 self.create_timer(1.0 / 50.0, self._refresh_oak_frames)
                 self.get_logger().info(
                     'OAK-D Pro pipeline opened (option A, direct DepthAI)')
+                if _CV_BRIDGE_AVAILABLE:
+                    self._oak_bridge         = CvBridge()
+                    self._pub_oak_rgb        = self.create_publisher(Image,       '/oak/rgb/image_raw',    1)
+                    self._pub_oak_left       = self.create_publisher(Image,       '/oak/left/image_raw',   1)
+                    self._pub_oak_right      = self.create_publisher(Image,       '/oak/right/image_raw',  1)
+                    self._pub_oak_rgb_info   = self.create_publisher(CameraInfo,  '/oak/rgb/camera_info',  1)
+                    self._pub_oak_left_info  = self.create_publisher(CameraInfo,  '/oak/left/camera_info', 1)
+                    self._pub_oak_right_info = self.create_publisher(CameraInfo,  '/oak/right/camera_info',1)
+                    if self._oak._calib is not None:
+                        self._cam_info_rgb   = self._make_cam_info(
+                            self._oak._calib, dai.CameraBoardSocket.CAM_A,
+                            *self._oak._rgb_size,  'oak_rgb')
+                        self._cam_info_left  = self._make_cam_info(
+                            self._oak._calib, dai.CameraBoardSocket.CAM_B,
+                            *self._oak._mono_size, 'oak_left')
+                        self._cam_info_right = self._make_cam_info(
+                            self._oak._calib, dai.CameraBoardSocket.CAM_C,
+                            *self._oak._mono_size, 'oak_right')
             except Exception as e:
                 self.get_logger().error(
                     f'OAK-D Pro init failed: {e}.  '
@@ -391,6 +441,29 @@ class AutomobileDataPi(Automobile_Data, Node):
     def feedback_position_callback(self, data: Bool) -> None:
         self.reachedPosition = data.data
 
+    def _make_cam_info(self, calib, socket, w, h, frame_id) -> CameraInfo:
+        msg = CameraInfo()
+        msg.width  = w
+        msg.height = h
+        msg.header.frame_id   = frame_id
+        msg.distortion_model  = 'plumb_bob'
+        try:
+            K_raw = calib.getCameraIntrinsics(socket, w, h)  # 3×3 list of lists
+            msg.k = [float(v) for row in K_raw for v in row]
+            D_raw = calib.getDistortionCoefficients(socket)
+            msg.d = [float(v) for v in D_raw]
+        except Exception:
+            msg.k = [0.0] * 9
+            msg.d = []
+        msg.r = [1.0, 0.0, 0.0,
+                 0.0, 1.0, 0.0,
+                 0.0, 0.0, 1.0]
+        k = msg.k
+        msg.p = [k[0], k[1], k[2], 0.0,
+                 k[3], k[4], k[5], 0.0,
+                 k[6], k[7], k[8], 0.0]
+        return msg
+
     def _image_callback(self, msg: Image) -> None:
         # Used by the simulator and by option-B (depthai_ros_driver).
         # When the OAK-D direct pipeline is also active (option A), the
@@ -410,10 +483,50 @@ class AutomobileDataPi(Automobile_Data, Node):
         with self._oak._lock:
             rgb   = self._oak.rgb_frame
             depth = self._oak.depth_frame
+            left  = self._oak.left_frame
+            right = self._oak.right_frame
+        now = self.get_clock().now().to_msg()
         if rgb is not None:
             self.frame = rgb
+            if self._pub_oak_rgb is not None:
+                try:
+                    img_msg = self._oak_bridge.cv2_to_imgmsg(rgb, encoding='bgr8')
+                    img_msg.header.stamp = now
+                    img_msg.header.frame_id = 'oak_rgb'
+                    self._pub_oak_rgb.publish(img_msg)
+                    if self._pub_oak_rgb_info is not None and self._cam_info_rgb is not None:
+                        self._cam_info_rgb.header.stamp = now
+                        self._pub_oak_rgb_info.publish(self._cam_info_rgb)
+                except Exception:
+                    pass
         if depth is not None:
             self.depth_frame = depth
+        if left is not None:
+            self.left_frame = left
+            if self._pub_oak_left is not None:
+                try:
+                    img_msg = self._oak_bridge.cv2_to_imgmsg(left, encoding='mono8')
+                    img_msg.header.stamp = now
+                    img_msg.header.frame_id = 'oak_left'
+                    self._pub_oak_left.publish(img_msg)
+                    if self._pub_oak_left_info is not None and self._cam_info_left is not None:
+                        self._cam_info_left.header.stamp = now
+                        self._pub_oak_left_info.publish(self._cam_info_left)
+                except Exception:
+                    pass
+        if right is not None:
+            self.right_frame = right
+            if self._pub_oak_right is not None:
+                try:
+                    img_msg = self._oak_bridge.cv2_to_imgmsg(right, encoding='mono8')
+                    img_msg.header.stamp = now
+                    img_msg.header.frame_id = 'oak_right'
+                    self._pub_oak_right.publish(img_msg)
+                    if self._pub_oak_right_info is not None and self._cam_info_right is not None:
+                        self._cam_info_right.header.stamp = now
+                        self._pub_oak_right_info.publish(self._cam_info_right)
+                except Exception:
+                    pass
 
     # ═══════════════════════════════════════════════════════════════════ #
     #  COMMAND ACTIONS                                                    #

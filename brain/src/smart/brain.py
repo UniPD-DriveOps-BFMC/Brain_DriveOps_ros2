@@ -87,7 +87,7 @@ else:
     CHECKPOINTS = [451, 393, 400] # TEST WHOLE PATH
     CHECKPOINTS = [125, 163, 336, 150] # TEST Thomas semaphores
     CHECKPOINTS = [451, 412, 393, 306, 150, 140, 121, 92, 109, 130, 147, 175, 133, 123, 118, 91, 163, 373, 406, 444] # TEST WHOLE PATH no 468 but 451
-    CHECKPOINTS = [451,512,390] #crosswalk, parking and intersection
+    CHECKPOINTS = [451,421,390] #crosswalk, parking and intersection
     CHECKPOINTS = [355,212,150] #roundabout and highway
     END_NODE = CHECKPOINTS[-1]
     GPS_FOR_START_ONLY = False
@@ -690,7 +690,8 @@ class Brain:
             return
 
         if self.next_event.name == nac.NO_LANE_EVENT:   
-            self.no_lane()
+            #self.no_lane()
+            self.switch_to_state(nac.NO_LANE_STATE)
 
         # PROBLEMATIC STOPLINE
         if ((self.prev_event.name == nac.CROSSWALK_EVENT) and (norm(self.prev_event.point - np.array([18.83, 2.55])) < 0.03)):
@@ -1684,7 +1685,7 @@ class Brain:
         # Run pedestrian detection immediately so flags are fresh before any decision below.
         # Without this, control_for_pedestrian() only runs via run_routines() AFTER
         # crosswalk_navigation() returns, meaning flag_seen_pedestrian is always stale.
-        self.control_for_pedestrian()
+        # self.control_for_pedestrian()
 
         if nac.TESTING:
             self.activate_routines([nac.CONTROL_FOR_PEDESTRIAN])
