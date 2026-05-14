@@ -8,6 +8,7 @@ import os
 import time as _time_mod
 from time import time
 import names_and_constants as nac
+from ultralytics import YOLO
 from stopline import detect_angle
 
 # onnxruntime is preferred over cv.dnn for the lane keeper and YOLO,
@@ -136,34 +137,15 @@ class Detection:
     # init
     def __init__(self) -> None:
 
-        # ── Lane keeper (the model that produces e2, e3) ─────────────────
-        # Switched from cv.dnn to onnxruntime so we can use the GPU on the
-        # Jetson Orin Nano via CUDAExecutionProvider.  Falls back to CPU
-        # automatically if CUDA is not available (e.g. on a laptop running
-        # the simulator).  The .onnx file is the one trained by the team
-        # (`models/lane_keeper_small.onnx`) — unchanged.
-        self._ort_providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] \
-            if _ORT_AVAILABLE else None
-        if _ORT_AVAILABLE:
-            try:
-                self.lane_keeper = ort.InferenceSession(
-                    LANE_KEEPER_PATH, providers=self._ort_providers)
-                self._lane_input_name = self.lane_keeper.get_inputs()[0].name
-                print(f'[detection] lane_keeper providers: '
-                      f'{self.lane_keeper.get_providers()}')
-            except Exception as e:
-                print(f'[detection] CUDA EP unavailable for lane_keeper '
-                      f'({e}), falling back to CPU.')
-                self.lane_keeper = ort.InferenceSession(
-                    LANE_KEEPER_PATH, providers=['CPUExecutionProvider'])
-                self._lane_input_name = self.lane_keeper.get_inputs()[0].name
-        else:
-            # onnxruntime missing — fall back to cv.dnn (CPU only, no CUDA).
-            self.lane_keeper = cv.dnn.readNetFromONNX(LANE_KEEPER_PATH)
-            self._lane_input_name = None
+        # lane following
+        self.lane_keeper = cv.dnn.readNetFromONNX(LANE_KEEPER_PATH)
         self.lane_cnt = 0
         self.avg_lane_detection_time = 0
 
+        self.avg_stopline_detection_adv_time = 0
+        self.stopline_adv_cnt = 0
+
+        
         # ── Helper: load secondary models via onnxruntime (CUDA) with cv.dnn fallback ──
         def _load(path, label):
             if _ORT_AVAILABLE and os.path.isfile(path):
@@ -294,83 +276,48 @@ class Detection:
         """
         Estimates:
           - the lateral error wrt the center of the lane (e2),
-          - the angular error around the yaw axis wrt a fixed point
-            ahead (e3),
-          - an estimated point ahead in vehicle frame coordinates.
-
-        Implementation note
-        -------------------
-        Body replaced with the preprocessing + inference pipeline
-        from `luxonis_preprocessing.py` (the simple, non-robust
-        version that has been tested on the Jetson + OAK-D Pro).
-        Two changes vs. the original Brain_DEI version:
-
-          1. The crop now drops the *top 1/3* AND the *bottom 15 %*
-             of the frame (`[h/3 : 0.85·h]`), as opposed to keeping
-             everything below h/3.  This excludes the car bonnet
-             from the OAK-D field of view.
-          2. Inference goes through onnxruntime (CUDAExecutionProvider
-             on the Jetson) instead of cv.dnn.  cv.dnn is kept as a
-             fallback if onnxruntime is unavailable so the function
-             still works on a laptop running the simulator.
-
-        Signature & return are unchanged so brain.py keeps calling
-        this method exactly as before.
+            - the angular error around the yaw axis wrt a fixed point ahead (e3),
+            - the ditance from the next stop line (1/dist)
         """
         start_time = time()
         IMG_SIZE = (32, 32)  # match with trainer
 
-        # ── Preprocessing (matches luxonis_preprocessing.preprocess_frame) ─
-        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        h    = gray.shape[0]
-        gray = gray[int(h / 3): int(h * 0.85), :]   # crop top 1/3 AND bottom 15 %
-        gray = cv.resize(gray, (2 * IMG_SIZE[0], 2 * IMG_SIZE[1]))
-        gray = cv.Canny(gray, 100, 200)
-        gray = cv.blur(gray, (3, 3))
-        gray = cv.resize(gray, IMG_SIZE)
+        # convert to gray
+        frame = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        frame = frame[int(frame.shape[0]/3):, :]  # /3
+        # keep the bottom 2/3 of the image
+        frame = cv.resize(frame, (2*IMG_SIZE[0], 2*IMG_SIZE[1]))
+        #frame = cv.blur(frame, (7,7), 0)
+        frame = cv.Canny(frame, 100, 200)
+        frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
+        frame = cv.resize(frame, IMG_SIZE)
+
+        images = frame
+
 
         # ── Build the (1,1,32,32) or (2,1,32,32) blob ─────────────────────
         if faster:
-            blob = gray.astype(np.float32)[np.newaxis, np.newaxis, ...]
+            lob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
         else:
-            gray_flip = cv.flip(gray, 1)
-            blob = np.stack((gray, gray_flip), axis=0)\
-                     .astype(np.float32)[:, np.newaxis, ...]
+            frame_flip = cv.flip(frame, 1)
+            # stack the 2 images
+            images = np.stack((frame, frame_flip), axis=0)
+            blob = cv.dnn.blobFromImages(images, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
+        self.lane_keeper.setInput(blob)
+        out = -self.lane_keeper.forward()  # NOTE: MINUS SIGN IF OLD NET
+        output = out[0]
+        output_flipped = out[1] if not faster else None
 
-        # ── Inference (prefer onnxruntime; fall back to cv.dnn) ───────────
-        if self._lane_input_name is not None:
-            # onnxruntime path
-            if faster:
-                out = -self.lane_keeper.run(
-                    None, {self._lane_input_name: blob})[0]
-                e2 = float(out[0][0])
-                e3 = float(out[0][1])
-            else:
-                blob_orig = blob[0:1, ...]
-                blob_flip = blob[1:2, ...]
-                out_orig = -self.lane_keeper.run(
-                    None, {self._lane_input_name: blob_orig})[0]
-                out_flip = -self.lane_keeper.run(
-                    None, {self._lane_input_name: blob_flip})[0]
-                e2 = (float(out_orig[0][0]) - float(out_flip[0][0])) / 2.0
-                e3 = (float(out_orig[0][1]) - float(out_flip[0][1])) / 2.0
-        else:
-            # cv.dnn fallback (CPU only)
-            if faster:
-                cv_blob = cv.dnn.blobFromImage(
-                    gray, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-            else:
-                images = np.stack((gray, cv.flip(gray, 1)), axis=0)
-                cv_blob = cv.dnn.blobFromImages(
-                    images, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-            self.lane_keeper.setInput(cv_blob)
-            out = -self.lane_keeper.forward()
-            if faster:
-                e2 = float(out[0][0])
-                e3 = float(out[0][1])
-            else:
-                e2 = (float(out[0][0]) - float(out[1][0])) / 2.0
-                e3 = (float(out[0][1]) - float(out[1][1])) / 2.0
+        # <++>
+        e2 = output[0]
+        e3 = output[1]
+
+        if not faster:
+            e2_flipped = output_flipped[0]
+            e3_flipped = output_flipped[1]
+
+            e2 = (e2 - e2_flipped) / 2
+            e3 = (e3 - e3_flipped) / 2
 
         # ── Build the visual point-ahead in vehicle frame coordinates ─────
         d = DISTANCE_POINT_AHEAD
@@ -382,8 +329,9 @@ class Detection:
             / (self.lane_cnt + 1)
         self.lane_cnt += 1
         if show_ROI:
-            cv.imshow('lane_detection', cv.resize(gray, (320, 320),
-                                                  interpolation=cv.INTER_NEAREST))
+            cv.imshow('lane_detection', frame)
+            # cv.waitKey(1)  
+            #                                     interpolation=cv.INTER_NEAREST))
         return e2, e3, est_point_ahead
 
     def detect_lane_ahead(self, frame, show_ROI=True, faster=False):
@@ -404,34 +352,28 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
+        images = frame
+
         if faster:
-            blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
+            blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
+                                        swapRB=True, crop=False)
         else:
             frame_flip = cv.flip(frame, 1)
-            blob = np.stack((frame, frame_flip), axis=0).astype(np.float32)[:, np.newaxis, ...]
+            # stack the 2 images
+            images = np.stack((frame, frame_flip), axis=0)
+            blob = cv.dnn.blobFromImages(images, 1.0, IMG_SIZE, 0,
+                                         swapRB=True, crop=False)
+        self.lane_keeper_ahead.setInput(blob)
+        out = self.lane_keeper_ahead.forward()  # NOTE: MINUS SIGN IF OLD NET
+        print("OUT 0: ", out[0])
+        # print("OUT 1: ", out[1])
+        output = out[0]
+        output_flipped = out[1] if not faster else None
 
-        if self._la_in is not None:
-            if faster:
-                out = self.lane_keeper_ahead.run(None, {self._la_in: blob})[0]
-                output = out[0]
-                output_flipped = None
-            else:
-                out_orig = self.lane_keeper_ahead.run(None, {self._la_in: blob[0:1]})[0]
-                out_flip = self.lane_keeper_ahead.run(None, {self._la_in: blob[1:2]})[0]
-                output = out_orig[0]
-                output_flipped = out_flip[0]
-        else:
-            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False) if faster \
-                      else cv.dnn.blobFromImages(np.stack((frame, cv.flip(frame, 1)), axis=0), 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-            self.lane_keeper_ahead.setInput(cv_blob)
-            out = self.lane_keeper_ahead.forward()
-            output = out[0]
-            output_flipped = out[1] if not faster else None
-
-        print("OUT 0: ", output)
+        # <++>
         e3 = output[0]
 
-        if not faster and output_flipped is not None:
+        if not faster:
             e3_flipped = output_flipped[0]
             e3 = (e3 - e3_flipped) / 2.0  # - 0.17684
 
@@ -466,13 +408,13 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
-        if self._ir_in is not None:
-            output = self.intersection_navigator_right.run(None, {self._ir_in: blob})[0][0]
-        else:
-            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-            self.intersection_navigator_right.setInput(cv_blob)
-            output = self.intersection_navigator_right.forward()[0]
+        images = frame
+
+        blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
+                                    swapRB=True, crop=False)
+        self.intersection_navigator_right.setInput(blob)
+        out = self.intersection_navigator_right.forward()
+        output = out[0]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -507,13 +449,13 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
-        if self._il_in is not None:
-            output = self.intersection_navigator_left.run(None, {self._il_in: blob})[0][0]
-        else:
-            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-            self.intersection_navigator_left.setInput(cv_blob)
-            output = self.intersection_navigator_left.forward()[0]
+        images = frame
+
+        blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
+                                    swapRB=True, crop=False)
+        self.intersection_navigator_right.setInput(blob)
+        out = self.intersection_navigator_right.forward()
+        output = out[0]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -596,13 +538,17 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
-        if self._ri_in is not None:
-            output = self.roundabout_navigator_in.run(None, {self._ri_in: blob})[0][0]
-        else:
-            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-            self.roundabout_navigator_in.setInput(cv_blob)
-            output = self.roundabout_navigator_in.forward()[0]
+        images = frame
+
+        frame_flip = cv.flip(frame, 1)
+        # stack the 2 images
+        images = np.stack((frame, frame_flip), axis=0)
+        blob = cv.dnn.blobFromImages(images, 1.0, IMG_SIZE, 0,
+                                     swapRB=True, crop=False)
+        self.intersection_navigator_forward.setInput(blob)
+        out = self.intersection_navigator_forward.forward()
+        output = out[0]
+        output_flipped = out[1]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -637,13 +583,13 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
-        if self._ra_in is not None:
-            output = self.roundabout_navigator_about.run(None, {self._ra_in: blob})[0][0]
-        else:
-            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-            self.roundabout_navigator_about.setInput(cv_blob)
-            output = self.roundabout_navigator_about.forward()[0]
+        images = frame
+
+        blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
+                                    swapRB=True, crop=False)
+        self.roundabout_navigator_in.setInput(blob)
+        out = self.roundabout_navigator_in.forward()
+        output = out[0]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -678,13 +624,13 @@ class Detection:
         frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
         frame = cv.resize(frame, IMG_SIZE)
 
-        blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
-        if self._ro_in is not None:
-            output = self.roundabout_navigator_out.run(None, {self._ro_in: blob})[0][0]
-        else:
-            cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-            self.roundabout_navigator_out.setInput(cv_blob)
-            output = self.roundabout_navigator_out.forward()[0]
+        images = frame
+
+        blob = cv.dnn.blobFromImage(images, 1.0, IMG_SIZE, 0,
+                                    swapRB=True, crop=False)
+        self.roundabout_navigator_about.setInput(blob)
+        out = self.roundabout_navigator_about.forward()
+        output = out[0]
         e3 = output[0]
 
         # calculate estimated of thr point ahead to get visual feedback
@@ -719,13 +665,10 @@ class Detection:
             frame = cv.blur(frame, (3, 3), 0)  # worse than blur after 11,11
             frame = cv.resize(frame, IMG_SIZE)
 
-            blob = frame.astype(np.float32)[np.newaxis, np.newaxis, ...]
-            if self._sla_in is not None:
-                output = self.stopline_estimator_adv.run(None, {self._sla_in: blob})[0]
-            else:
-                cv_blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True, crop=False)
-                self.stopline_estimator_adv.setInput(cv_blob)
-                output = self.stopline_estimator_adv.forward()
+            blob = cv.dnn.blobFromImage(frame, 1.0, IMG_SIZE, 0, swapRB=True,
+                                        crop=False)
+            self.stopline_estimator_adv.setInput(blob)
+            output = self.stopline_estimator_adv.forward()
             stopline_x = dist = output[0][0] + PREDICTION_OFFSET
             stopline_y = output[0][1]
             stopline_angle = output[0][2]
