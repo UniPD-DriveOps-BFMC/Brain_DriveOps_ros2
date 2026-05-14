@@ -30,7 +30,6 @@ Run in simulation:
 
 import os
 import json
-import time
 import threading
 import numpy as np
 import cv2
@@ -40,11 +39,12 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
 from std_msgs.msg import String, Float32
+from ament_index_python.packages import get_package_share_directory
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-_PACKAGE_DIR   = os.path.dirname(os.path.abspath(__file__))
-_DEFAULT_MODEL = os.path.join(_PACKAGE_DIR, 'models/sign_yolo.onnx')
+_DEFAULT_MODEL = os.path.join(
+    get_package_share_directory('smart'), 'models', 'sign_yolo.onnx')
 
 CLASS_NAMES = [
     'stop', 'parking', 'priority', 'roundabout', 'one_way',
@@ -57,17 +57,6 @@ CLASS_COLORS_BGR = [
     (50, 200,  50),
 ]
 
-_DEFAULT_TRIGGER_DIST = {
-    'stop': 0.60, 'parking': 0.80, 'priority': 0.60, 'roundabout': 0.70,
-    'one_way': 0.70, 'no_entry': 0.80, 'exit_highway': 0.60,
-    'entrance_highway': 0.80, 'crosswalk': 0.50,
-}
-
-_DEFAULT_COOLDOWN = {
-    'stop': 5.0, 'parking': 8.0, 'priority': 4.0, 'roundabout': 5.0,
-    'one_way': 5.0, 'no_entry': 5.0, 'exit_highway': 8.0,
-    'entrance_highway': 8.0, 'crosswalk': 3.0,
-}
 
 # Supported encodings for SIM-mode ROS Image → OpenCV
 _ENCODING_MAP = {
@@ -139,9 +128,6 @@ class OakCameraNode(Node):
         self.declare_parameter('camera_hz',       30.0)
         self.declare_parameter('detection_hz',    20.0)
         self.declare_parameter('debug_view',      False)
-        for cls in CLASS_NAMES:
-            self.declare_parameter(f'trigger_dist_{cls}', _DEFAULT_TRIGGER_DIST[cls])
-            self.declare_parameter(f'cooldown_{cls}',     _DEFAULT_COOLDOWN[cls])
 
         use_sim             = self.get_parameter('use_sim').value
         sim_topic           = self.get_parameter('sim_image_topic').value
@@ -154,8 +140,6 @@ class OakCameraNode(Node):
         camera_hz           = self.get_parameter('camera_hz').value
         detection_hz        = self.get_parameter('detection_hz').value
         self.debug_view     = self.get_parameter('debug_view').value
-        self.trigger_dist   = {c: self.get_parameter(f'trigger_dist_{c}').value for c in CLASS_NAMES}
-        self.cooldown       = {c: self.get_parameter(f'cooldown_{c}').value     for c in CLASS_NAMES}
 
         # ── ONNX ──────────────────────────────────────────────────────────
         if not os.path.isfile(model_path):
@@ -177,7 +161,6 @@ class OakCameraNode(Node):
         self._cam_info_rgt = None
 
         # ── Detection state ───────────────────────────────────────────────
-        self.last_trigger = {cls: 0.0 for cls in CLASS_NAMES}
         self._lb_scale    = 1.0
         self._lb_pad      = (0, 0)
         self._device      = None
@@ -371,26 +354,19 @@ class OakCameraNode(Node):
         dist_val = float(nearest['dist_m']) if nearest and nearest['dist_m'] > 0 else -1.0
         self._pub_dist.publish(Float32(data=dist_val))
 
-        # Trigger detection event when close enough and cooldown elapsed
+        # Publish nearest sign on every frame — no cooldown
         if nearest is not None:
             cls_id     = nearest['cls']
             class_name = CLASS_NAMES[cls_id] if 0 <= cls_id < len(CLASS_NAMES) else f'cls_{cls_id}'
             dist_m     = nearest['dist_m']
             conf       = nearest['conf']
-            now        = time.time()
-
-            distance_ok = (0 < dist_m <= self.trigger_dist.get(class_name, 0.60))
-            cooldown_ok = (now - self.last_trigger.get(class_name, 0.0)) >= self.cooldown.get(class_name, 5.0)
-
-            if distance_ok and cooldown_ok:
-                payload = json.dumps({
-                    'sign':       class_name,
-                    'distance_m': round(dist_m, 3),
-                    'confidence': round(conf, 3),
-                })
-                self._pub_det.publish(String(data=payload))
-                self.last_trigger[class_name] = now
-                self.get_logger().info(f'TRIGGER → {payload}')
+            payload = json.dumps({
+                'sign':       class_name,
+                'distance_m': round(dist_m, 3) if dist_m > 0 else None,
+                'confidence': round(conf, 3),
+            })
+            self._pub_det.publish(String(data=payload))
+            self.get_logger().info(f'SIGN → {payload}')
 
         # Publish annotated image
         annotated = self._annotate(frame.copy(), dets, nearest)
