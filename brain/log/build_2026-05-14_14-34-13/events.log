@@ -1,0 +1,76 @@
+[0.000000] (-) TimerEvent: {}
+[0.000453] (-) JobUnselected: {'identifier': 'input'}
+[0.001053] (-) JobUnselected: {'identifier': 'unix_out'}
+[0.001639] (-) JobUnselected: {'identifier': 'utils'}
+[0.001864] (smart) JobQueued: {'identifier': 'smart', 'dependencies': OrderedDict()}
+[0.001929] (smart) JobStarted: {'identifier': 'smart'}
+[0.099490] (-) TimerEvent: {}
+[0.199791] (-) TimerEvent: {}
+[0.300066] (-) TimerEvent: {}
+[0.400259] (-) TimerEvent: {}
+[0.500549] (-) TimerEvent: {}
+[0.600822] (-) TimerEvent: {}
+[0.701134] (-) TimerEvent: {}
+[0.801426] (-) TimerEvent: {}
+[0.901713] (-) TimerEvent: {}
+[1.002045] (-) TimerEvent: {}
+[1.102351] (-) TimerEvent: {}
+[1.202618] (-) TimerEvent: {}
+[1.302866] (-) TimerEvent: {}
+[1.403147] (-) TimerEvent: {}
+[1.503462] (-) TimerEvent: {}
+[1.603822] (-) TimerEvent: {}
+[1.704090] (-) TimerEvent: {}
+[1.804349] (-) TimerEvent: {}
+[1.904582] (-) TimerEvent: {}
+[2.004859] (-) TimerEvent: {}
+[2.105143] (-) TimerEvent: {}
+[2.205430] (-) TimerEvent: {}
+[2.305849] (-) TimerEvent: {}
+[2.307410] (smart) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'egg_info', '--egg-base', '../../build/smart', 'build', '--build-base', '/home/davide-pillon/Brain_DEI/brain/build/smart/build', 'install', '--record', '/home/davide-pillon/Brain_DEI/brain/build/smart/install.log', '--single-version-externally-managed', 'install_data'], 'cwd': '/home/davide-pillon/Brain_DEI/brain/src/smart', 'env': {'GJS_DEBUG_TOPICS': 'JS ERROR;JS LOG', 'LESSOPEN': '| /usr/bin/lesspipe %s', 'VSCODE_CWD': '/home/davide-pillon', 'VSCODE_ESM_ENTRYPOINT': 'vs/workbench/api/node/extensionHostProcess', 'GZ_SIM_RESOURCE_PATH': '/opt/ros/jazzy/share', 'AI_AGENT': 'claude-code_2-1-140_agent', 'USER': 'davide-pillon', 'CLAUDE_CODE_ENTRYPOINT': 'claude-vscode', 'VSCODE_NLS_CONFIG': '{"userLocale":"en-us","osLocale":"en-us","resolvedLanguage":"en","defaultMessagesFile":"/usr/share/code/resources/app/out/nls.messages.json","locale":"en-us","availableLanguages":{}}', 'GZ_CONFIG_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/share/gz:/opt/ros/jazzy/opt/sdformat_vendor/share/gz:/opt/ros/jazzy/opt/gz_gui_vendor/share/gz:/opt/ros/jazzy/opt/gz_transport_vendor/share/gz:/opt/ros/jazzy/opt/gz_rendering_vendor/share/gz:/opt/ros/jazzy/opt/gz_plugin_vendor/share/gz:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/share/gz:/opt/ros/jazzy/opt/gz_msgs_vendor/share/gz:/opt/ros/jazzy/opt/gz_common_vendor/share/gz', 'GIT_EDITOR': 'true', 'VSCODE_HANDLES_UNCAUGHT_ERRORS': 'true', 'XDG_SESSION_TYPE': 'wayland', 'CLAUDE_AGENT_SDK_VERSION': '0.2.140', 'CLUTTER_DISABLE_MIPMAPPED_TEXT': '1', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/lib:/opt/ros/jazzy/opt/gz_sensors_vendor/lib:/opt/ros/jazzy/opt/gz_physics_vendor/lib:/opt/ros/jazzy/opt/sdformat_vendor/lib:/opt/ros/jazzy/opt/rviz_ogre_vendor/lib:/opt/ros/jazzy/lib/x86_64-linux-gnu:/opt/ros/jazzy/opt/gz_gui_vendor/lib:/opt/ros/jazzy/opt/gz_transport_vendor/lib:/opt/ros/jazzy/opt/gz_rendering_vendor/lib:/opt/ros/jazzy/opt/gz_plugin_vendor/lib:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/lib:/opt/ros/jazzy/opt/gz_msgs_vendor/lib:/opt/ros/jazzy/opt/gz_common_vendor/lib:/opt/ros/jazzy/opt/gz_math_vendor/lib:/opt/ros/jazzy/opt/gz_utils_vendor/lib:/opt/ros/jazzy/opt/gz_tools_vendor/lib:/opt/ros/jazzy/opt/gz_ogre_next_vendor/lib:/opt/ros/jazzy/opt/gz_dartsim_vendor/lib:/opt/ros/jazzy/opt/gz_cmake_vendor/lib:/opt/ros/jazzy/lib', 'HOME': '/home/davide-pillon', 'CHROME_DESKTOP': 'code.desktop', 'OLDPWD': '/home/davide-pillon/Brain_DEI', 'DESKTOP_SESSION': 'ubuntu', 'VSCODE_IPC_HOOK': '/run/user/1000/vscode-598ba3c2-1.11-main.sock', 'GIO_LAUNCHED_DESKTOP_FILE': '/usr/share/applications/code.desktop', 'ROS_PYTHON_VERSION': '3', 'GNOME_SHELL_SESSION_MODE': 'ubuntu', 'GTK_MODULES': 'gail:atk-bridge', 'MANAGERPID': '2183', 'SYSTEMD_EXEC_PID': '2456', 'IM_CONFIG_CHECK_ENV': '1', 'GSM_SKIP_SSH_AGENT_WORKAROUND': 'true', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus', 'GIO_LAUNCHED_DESKTOP_FILE_PID': '3736', 'VSCODE_CRASH_REPORTER_PROCESS_TYPE': 'extensionHost', 'DEBUGINFOD_URLS': 'https://debuginfod.ubuntu.com', 'IM_CONFIG_PHASE': '1', 'WAYLAND_DISPLAY': 'wayland-0', 'VSCODE_L10N_BUNDLE_LOCATION': '', 'ROS_DISTRO': 'jazzy', 'LOGNAME': 'davide-pillon', 'IGN_GAZEBO_MODEL_PATH': '/opt/ros/jazzy/share', 'JOURNAL_STREAM': '9:17104', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'MEMORY_PRESSURE_WATCH': '/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/session.slice/org.gnome.Shell@wayland.service/memory.pressure', 'XDG_SESSION_CLASS': 'user', 'USERNAME': 'davide-pillon', 'GAZEBO_MODEL_PATH': '/opt/ros/jazzy/share', 'GNOME_DESKTOP_SESSION_ID': 'this-is-deprecated', 'FC_FONTATIONS': '1', 'MCP_CONNECTION_NONBLOCKING': 'true', 'PATH': '/usr/bin:/home/davide-pillon/.local/bin:/home/davide-pillon/.local/bin:/opt/ros/jazzy/opt/gz_msgs_vendor/bin:/opt/ros/jazzy/opt/gz_tools_vendor/bin:/opt/ros/jazzy/opt/gz_ogre_next_vendor/bin:/opt/ros/jazzy/bin:/home/davide-pillon/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin:/home/davide-pillon/.local/bin:/home/davide-pillon/.local/bin', 'SESSION_MANAGER': 'local/davide-pillon-BOD-WXX9:@/tmp/.ICE-unix/2412,unix/davide-pillon-BOD-WXX9:/tmp/.ICE-unix/2412', 'INVOCATION_ID': '6f3a8b3df0324da389b32ebad74de3c1', 'COREPACK_ENABLE_AUTO_PIN': '0', 'XDG_MENU_PREFIX': 'gnome-', 'GNOME_SETUP_DISPLAY': ':1', 'XDG_RUNTIME_DIR': '/run/user/1000', 'GDK_BACKEND': 'wayland', 'CLAUDE_EFFORT': 'high', 'DISPLAY': ':0', 'NoDefaultCurrentDirectoryInExePath': '1', 'LANG': 'en_US.UTF-8', 'XDG_CURRENT_DESKTOP': 'ubuntu:GNOME', 'XMODIFIERS': '@im=ibus', 'XDG_SESSION_DESKTOP': 'ubuntu', 'XAUTHORITY': '/run/user/1000/.mutter-Xwaylandauth.QXBOP3', 'SSH_AUTH_SOCK': '/run/user/1000/keyring/ssh', 'AMENT_PREFIX_PATH': '/opt/ros/jazzy', 'SHELL': '/bin/bash', 'QT_ACCESSIBILITY': '1', 'ELECTRON_RUN_AS_NODE': '1', 'GDMSESSION': 'ubuntu', 'CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING': 'true', 'CLAUDE_CODE_SESSION_ID': 'cfb92145-9bb9-4d6b-bad0-78d8ebac263d', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'IGN_GAZEBO_RESOURCE_PATH': '/opt/ros/jazzy/share', 'CLAUDECODE': '1', 'GAZEBO_RESOURCE_PATH': '/opt/ros/jazzy/share', 'GJS_DEBUG_OUTPUT': 'stderr', 'VIRTUAL_ENV': '/usr', 'ROS_AUTOMATIC_DISCOVERY_RANGE': 'SUBNET', 'QT_IM_MODULE': 'ibus', 'PWD': '/home/davide-pillon/Brain_DEI/brain/build/smart', 'LC_ALL': 'en_US.UTF-8', 'XDG_CONFIG_DIRS': '/etc/xdg/xdg-ubuntu:/etc/xdg', 'VSCODE_CODE_CACHE_PATH': '/home/davide-pillon/.config/Code/CachedData/cfbea10c5ffb233ea9177d34726e6056e89913dc', 'XDG_DATA_DIRS': '/usr/share/ubuntu:/usr/share/gnome:/home/davide-pillon/.local/share/flatpak/exports/share:/var/lib/flatpak/exports/share:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop', 'CLAUDE_CODE_EXECPATH': '/home/davide-pillon/.vscode/extensions/anthropic.claude-code-2.1.140-linux-x64/resources/native-binary/claude', 'PYTHONPATH': '/home/davide-pillon/Brain_DEI/brain/build/smart/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/davide-pillon/Brain_DEI/brain/install/smart/lib/python3.12/site-packages:/opt/ros/jazzy/lib/python3.12/site-packages', 'COLCON': '1', 'MEMORY_PRESSURE_WRITE': 'c29tZSAyMDAwMDAgMjAwMDAwMAA=', 'CMAKE_PREFIX_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor', 'VSCODE_PID': '3736'}, 'shell': False}
+[2.406027] (-) TimerEvent: {}
+[2.506320] (-) TimerEvent: {}
+[2.606623] (-) TimerEvent: {}
+[2.706992] (-) TimerEvent: {}
+[2.807291] (-) TimerEvent: {}
+[2.907555] (-) TimerEvent: {}
+[2.977068] (smart) StdoutLine: {'line': b'running egg_info\n'}
+[2.977715] (smart) StdoutLine: {'line': b'creating ../../build/smart/smart.egg-info\n'}
+[3.007696] (-) TimerEvent: {}
+[3.028270] (smart) StdoutLine: {'line': b'writing ../../build/smart/smart.egg-info/PKG-INFO\n'}
+[3.029155] (smart) StdoutLine: {'line': b'writing dependency_links to ../../build/smart/smart.egg-info/dependency_links.txt\n'}
+[3.029673] (smart) StdoutLine: {'line': b'writing entry points to ../../build/smart/smart.egg-info/entry_points.txt\n'}
+[3.029957] (smart) StdoutLine: {'line': b'writing requirements to ../../build/smart/smart.egg-info/requires.txt\n'}
+[3.030217] (smart) StdoutLine: {'line': b'writing top-level names to ../../build/smart/smart.egg-info/top_level.txt\n'}
+[3.030474] (smart) StdoutLine: {'line': b"writing manifest file '../../build/smart/smart.egg-info/SOURCES.txt'\n"}
+[3.107818] (-) TimerEvent: {}
+[3.124512] (smart) StdoutLine: {'line': b"reading manifest file '../../build/smart/smart.egg-info/SOURCES.txt'\n"}
+[3.126074] (smart) StdoutLine: {'line': b"writing manifest file '../../build/smart/smart.egg-info/SOURCES.txt'\n"}
+[3.126576] (smart) StdoutLine: {'line': b'running build\n'}
+[3.126801] (smart) StdoutLine: {'line': b'running build_py\n'}
+[3.127019] (smart) StdoutLine: {'line': b'creating /home/davide-pillon/Brain_DEI/brain/build/smart/build\n'}
+[3.127161] (smart) StdoutLine: {'line': b'creating /home/davide-pillon/Brain_DEI/brain/build/smart/build/lib\n'}
+[3.127293] (smart) StdoutLine: {'line': b'copying oak_camera_node.py -> /home/davide-pillon/Brain_DEI/brain/build/smart/build/lib\n'}
+[3.127807] (smart) StdoutLine: {'line': b'running install\n'}
+[3.144348] (smart) StdoutLine: {'line': b'running install_lib\n'}
+[3.195658] (smart) StdoutLine: {'line': b'copying /home/davide-pillon/Brain_DEI/brain/build/smart/build/lib/oak_camera_node.py -> /home/davide-pillon/Brain_DEI/brain/install/smart/lib/python3.12/site-packages\n'}
+[3.197158] (smart) StdoutLine: {'line': b'byte-compiling /home/davide-pillon/Brain_DEI/brain/install/smart/lib/python3.12/site-packages/oak_camera_node.py to oak_camera_node.cpython-312.pyc\n'}
+[3.207971] (-) TimerEvent: {}
+[3.210357] (smart) StdoutLine: {'line': b'running install_data\n'}
+[3.210958] (smart) StdoutLine: {'line': b'creating /home/davide-pillon/Brain_DEI/brain/install/smart/share/ament_index\n'}
+[3.211283] (smart) StdoutLine: {'line': b'creating /home/davide-pillon/Brain_DEI/brain/install/smart/share/ament_index/resource_index\n'}
+[3.211447] (smart) StdoutLine: {'line': b'creating /home/davide-pillon/Brain_DEI/brain/install/smart/share/ament_index/resource_index/packages\n'}
+[3.211741] (smart) StdoutLine: {'line': b'copying resource/smart -> /home/davide-pillon/Brain_DEI/brain/install/smart/share/ament_index/resource_index/packages\n'}
+[3.211898] (smart) StdoutLine: {'line': b'copying package.xml -> /home/davide-pillon/Brain_DEI/brain/install/smart/share/smart\n'}
+[3.212061] (smart) StdoutLine: {'line': b'running install_egg_info\n'}
+[3.264022] (smart) StdoutLine: {'line': b'Copying ../../build/smart/smart.egg-info to /home/davide-pillon/Brain_DEI/brain/install/smart/lib/python3.12/site-packages/smart-0.0.0-py3.12.egg-info\n'}
+[3.265950] (smart) StdoutLine: {'line': b'running install_scripts\n'}
+[3.308099] (-) TimerEvent: {}
+[3.408372] (-) TimerEvent: {}
+[3.508638] (-) TimerEvent: {}
+[3.571972] (smart) StdoutLine: {'line': b'Installing oak_camera_node script to /home/davide-pillon/Brain_DEI/brain/install/smart/lib/smart\n'}
+[3.572533] (smart) StdoutLine: {'line': b"writing list of installed files to '/home/davide-pillon/Brain_DEI/brain/build/smart/install.log'\n"}
+[3.608788] (-) TimerEvent: {}
+[3.630844] (smart) CommandEnded: {'returncode': 0}
+[3.654394] (smart) JobEnded: {'identifier': 'smart', 'rc': 0}
+[3.655627] (-) EventReactorShutdown: {}

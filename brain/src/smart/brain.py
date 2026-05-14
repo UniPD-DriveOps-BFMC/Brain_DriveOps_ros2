@@ -489,7 +489,7 @@ class Brain:
         self.sign_seen = np.zeros(len(self.sign_types))
         self.curr_sign = nac.NO_SIGN          # live YOLO tracker (fast, may fluctuate)
         self.curr_sign_confidence = 0.0
-        self._sign_vote_buffer    = collections.deque(maxlen=SIGN_VOTE_WINDOW)
+        self._sign_vote_buffer    = deque(maxlen=SIGN_VOTE_WINDOW)
         self._sign_no_detect_cnt  = 0
         self.confirmed_sign = nac.NO_SIGN    # map-validated sign used for decisions
         self.past_frames = deque(maxlen=DEQUE_OF_PAST_FRAMES_LENGTH)

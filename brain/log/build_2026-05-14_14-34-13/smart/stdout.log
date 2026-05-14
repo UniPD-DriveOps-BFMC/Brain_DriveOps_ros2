@@ -1,0 +1,30 @@
+running egg_info
+creating ../../build/smart/smart.egg-info
+writing ../../build/smart/smart.egg-info/PKG-INFO
+writing dependency_links to ../../build/smart/smart.egg-info/dependency_links.txt
+writing entry points to ../../build/smart/smart.egg-info/entry_points.txt
+writing requirements to ../../build/smart/smart.egg-info/requires.txt
+writing top-level names to ../../build/smart/smart.egg-info/top_level.txt
+writing manifest file '../../build/smart/smart.egg-info/SOURCES.txt'
+reading manifest file '../../build/smart/smart.egg-info/SOURCES.txt'
+writing manifest file '../../build/smart/smart.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/davide-pillon/Brain_DEI/brain/build/smart/build
+creating /home/davide-pillon/Brain_DEI/brain/build/smart/build/lib
+copying oak_camera_node.py -> /home/davide-pillon/Brain_DEI/brain/build/smart/build/lib
+running install
+running install_lib
+copying /home/davide-pillon/Brain_DEI/brain/build/smart/build/lib/oak_camera_node.py -> /home/davide-pillon/Brain_DEI/brain/install/smart/lib/python3.12/site-packages
+byte-compiling /home/davide-pillon/Brain_DEI/brain/install/smart/lib/python3.12/site-packages/oak_camera_node.py to oak_camera_node.cpython-312.pyc
+running install_data
+creating /home/davide-pillon/Brain_DEI/brain/install/smart/share/ament_index
+creating /home/davide-pillon/Brain_DEI/brain/install/smart/share/ament_index/resource_index
+creating /home/davide-pillon/Brain_DEI/brain/install/smart/share/ament_index/resource_index/packages
+copying resource/smart -> /home/davide-pillon/Brain_DEI/brain/install/smart/share/ament_index/resource_index/packages
+copying package.xml -> /home/davide-pillon/Brain_DEI/brain/install/smart/share/smart
+running install_egg_info
+Copying ../../build/smart/smart.egg-info to /home/davide-pillon/Brain_DEI/brain/install/smart/lib/python3.12/site-packages/smart-0.0.0-py3.12.egg-info
+running install_scripts
+Installing oak_camera_node script to /home/davide-pillon/Brain_DEI/brain/install/smart/lib/smart
+writing list of installed files to '/home/davide-pillon/Brain_DEI/brain/build/smart/install.log'
